@@ -29,7 +29,7 @@ The first time you launch `dropbox-cli`, it will detect that no rclone remote na
 5. Edit advanced config? `n`
 6. **Use auto config?** `n` — important for headless servers
 7. Follow the headless-auth instructions: on a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, paste the token back.
-8. Confirm and quit config.
+8. Confirm and quit config (`q`).
 
 `dropbox-cli` will then launch its TUI.
 

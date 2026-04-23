@@ -30,6 +30,7 @@ def run_interactive_setup() -> None:
     print("    5. Edit advanced config? n")
     print("    6. Use auto config? n  ← important for headless servers")
     print("    7. Follow the token-paste instructions shown.")
+    print("    8. Press q to quit rclone config.")
     print()
     subprocess.run(["rclone", "config"], check=False)
     print()
