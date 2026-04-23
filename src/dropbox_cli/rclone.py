@@ -27,7 +27,13 @@ class Entry:
         return _fmt_bytes(self.size)
 
     def mod_time_short(self) -> str:
-        return self.mod_time[:10] if len(self.mod_time) >= 10 else self.mod_time
+        if len(self.mod_time) < 10:
+            return "—"
+        date = self.mod_time[:10]
+        # rclone returns these sentinels when the backend has no mod time (e.g. Dropbox folders)
+        if date in ("2000-01-01", "0001-01-01"):
+            return "—"
+        return date
 
     def icon(self) -> str:
         if self.is_dir:
