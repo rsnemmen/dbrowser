@@ -7,7 +7,7 @@ from textual.app import App
 from textual.worker import Worker
 
 from .browser import BrowserScreen
-from .modals import run_sync_prompt
+from .modals import BatchSyncScreen
 from .state import DownloadLedger, LedgerError
 
 
@@ -66,18 +66,12 @@ class DbrowserApp(App):
                 self.notify(str(exc), title="Download ledger")
                 return
 
-            total = len(records)
-            if total == 0:
+            if not records:
                 if status_callback is not None:
                     status_callback("No tracked folders available for sync.")
                 return
 
-            for index, record in enumerate(records, start=1):
-                if status_callback is not None:
-                    status_callback(
-                        f"Checking tracked folder {index}/{total} before {reason}…"
-                    )
-                await run_sync_prompt(self, record)
+            await self.push_screen_wait(BatchSyncScreen(records))
 
             if status_callback is not None:
                 status_callback("Sync check complete.")

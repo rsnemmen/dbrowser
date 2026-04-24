@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, LoadingIndicator, ProgressBar, Static
+from textual.widgets import Button, DataTable, Input, Label, LoadingIndicator, ProgressBar, Static
 from textual.worker import Worker
 
 from . import rclone
@@ -22,6 +25,38 @@ class TransferOutcome(StrEnum):
     ERROR = "error"
 
 
+@dataclass
+class _RowState:
+    record: DownloadRecord
+    events: list[SyncEvent] = field(default_factory=list)
+    status: Literal["checking", "clean", "changed", "error", "syncing", "done", "failed"] = "checking"
+    error: str | None = None
+    selected: bool = False
+
+    def check_cell(self) -> str:
+        if self.status not in ("changed",):
+            return "   "
+        return "[✓]" if self.selected else "[ ]"
+
+    def status_cell(self) -> str:
+        if self.status == "checking":
+            return "Checking…"
+        if self.status == "clean":
+            return "No changes"
+        if self.status == "changed":
+            n = len(self.events)
+            return f"● {n} change{'s' if n != 1 else ''}"
+        if self.status == "error":
+            return f"✗ {self.error or 'Error'}"
+        if self.status == "syncing":
+            return "→ Syncing…"
+        if self.status == "done":
+            return "✓ Synced"
+        if self.status == "failed":
+            return f"✗ {self.error or 'Failed'}"
+        return ""
+
+
 async def collect_sync_events(record: DownloadRecord) -> list[SyncEvent]:
     events: list[SyncEvent] = []
     async for event in rclone.sync(
@@ -32,6 +67,20 @@ async def collect_sync_events(record: DownloadRecord) -> list[SyncEvent]:
         if isinstance(event, SyncEvent):
             events.append(event)
     return events
+
+
+async def _stream_sync(
+    record: DownloadRecord,
+    on_progress: Callable[[ProgressEvent], None],
+) -> tuple[Literal["success", "error"], str | None]:
+    """Stream a live sync to remote; CancelledError propagates (callers handle it)."""
+    try:
+        async for ev in rclone.sync(str(record.local_path), record.remote_path, dry_run=False):
+            if isinstance(ev, ProgressEvent):
+                on_progress(ev)
+    except rclone.RcloneError as exc:
+        return "error", str(exc)
+    return "success", None
 
 
 async def run_sync_prompt(app: App, record: DownloadRecord) -> TransferOutcome | None:
@@ -390,3 +439,242 @@ class SyncProgressModal(ModalScreen[TransferOutcome]):
 
         bar.progress = 100
         self.dismiss(TransferOutcome.SUCCESS)
+
+
+# ── Batch sync screen ─────────────────────────────────────────────────────────
+
+class BatchSyncScreen(ModalScreen[None]):
+    """Single screen for reviewing and syncing all tracked folders."""
+
+    DEFAULT_CSS = """
+    BatchSyncScreen > Vertical {
+        width: 82;
+        height: auto;
+        max-height: 38;
+        background: $surface;
+        border: thick $primary;
+        padding: 1 2;
+    }
+    BatchSyncScreen #title { margin-bottom: 1; }
+    BatchSyncScreen DataTable { height: auto; max-height: 14; margin-bottom: 1; }
+    BatchSyncScreen #progress-section { display: none; margin-bottom: 1; }
+    BatchSyncScreen.syncing #progress-section { display: block; }
+    BatchSyncScreen #progress-label { color: $text-muted; height: 1; }
+    BatchSyncScreen #status-line { color: $text-muted; height: 1; margin-bottom: 1; }
+    BatchSyncScreen #btn-row { layout: horizontal; height: auto; }
+    BatchSyncScreen Button { margin-right: 1; }
+    """
+
+    BINDINGS = [
+        Binding("j", "cursor_down", show=False),
+        Binding("k", "cursor_up", show=False),
+        Binding("space", "toggle_row", "Toggle"),
+        Binding("a", "toggle_all", "Toggle all"),
+        Binding("enter", "confirm", "Sync selected"),
+        Binding("escape", "skip_all", "Skip all"),
+    ]
+
+    def __init__(self, records: list[DownloadRecord]) -> None:
+        super().__init__()
+        self._rows: dict[str, _RowState] = {
+            r.remote_path: _RowState(record=r) for r in records
+        }
+        self._row_order: list[str] = [r.remote_path for r in records]
+        self._dry_run_worker: Worker[None] | None = None
+        self._sync_worker: Worker[None] | None = None
+        self._checking_done = False
+        self._syncing = False
+        self._all_done = False
+        self._dismissed = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("Tracked folders — sync check", id="title")
+            yield DataTable(id="folders", cursor_type="row")
+            with Vertical(id="progress-section"):
+                yield Label("", id="progress-label")
+                yield ProgressBar(total=100, show_eta=True, id="progress")
+            yield Label("", id="status-line")
+            with Center(id="btn-row"):
+                yield Button("Sync selected", variant="primary", id="btn-sync", disabled=True)
+                yield Button("Skip all", variant="default", id="btn-skip")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#folders", DataTable)
+        table.add_column("", key="check", width=5)
+        table.add_column("Remote path", key="remote", width=44)
+        table.add_column("Status", key="status", width=22)
+        for state in self._rows.values():
+            table.add_row(
+                state.check_cell(),
+                state.record.remote_path,
+                state.status_cell(),
+                key=state.record.remote_path,
+            )
+        self._dry_run_worker = self.run_worker(self._run_dry_runs(), exclusive=True)
+
+    def _update_row(self, state: _RowState) -> None:
+        if self._dismissed:
+            return
+        table = self.query_one("#folders", DataTable)
+        key = state.record.remote_path
+        table.update_cell(key, "check", state.check_cell())
+        table.update_cell(key, "status", state.status_cell())
+
+    async def _run_dry_runs(self) -> None:
+        sem = asyncio.Semaphore(4)
+
+        async def check_one(state: _RowState) -> None:
+            async with sem:
+                try:
+                    events = await collect_sync_events(state.record)
+                    state.events = events
+                    state.status = "clean" if not events else "changed"
+                    state.selected = bool(events)
+                except rclone.RcloneError as exc:
+                    state.status = "error"
+                    state.error = str(exc)
+            self._update_row(state)
+
+        await asyncio.gather(*(check_one(s) for s in self._rows.values()))
+        self._on_dry_runs_complete()
+
+    def _on_dry_runs_complete(self) -> None:
+        self._checking_done = True
+        has_changes = any(s.status == "changed" for s in self._rows.values())
+        if not has_changes:
+            self.query_one("#status-line", Label).update("Everything up to date.")
+            self.set_timer(0.8, self._safe_dismiss)
+            return
+        self._refresh_selected_status()
+
+    def _refresh_selected_status(self) -> None:
+        selected = sum(1 for s in self._rows.values() if s.selected)
+        self.query_one("#btn-sync", Button).disabled = selected == 0
+        self.query_one("#status-line", Label).update(
+            f"{selected} folder(s) selected for sync."
+            if selected > 0
+            else "No folders selected — press Space to select."
+        )
+
+    # ── Navigation ─────────────────────────────────────────────────────────────
+
+    def action_cursor_down(self) -> None:
+        table = self.query_one("#folders", DataTable)
+        if table.cursor_row < len(self._row_order) - 1:
+            table.move_cursor(row=table.cursor_row + 1)
+
+    def action_cursor_up(self) -> None:
+        table = self.query_one("#folders", DataTable)
+        if table.cursor_row > 0:
+            table.move_cursor(row=table.cursor_row - 1)
+
+    # ── Selection ──────────────────────────────────────────────────────────────
+
+    def action_toggle_row(self) -> None:
+        if not self._checking_done or self._syncing or self._all_done:
+            return
+        table = self.query_one("#folders", DataTable)
+        idx = table.cursor_row
+        if not (0 <= idx < len(self._row_order)):
+            return
+        state = self._rows[self._row_order[idx]]
+        if state.status != "changed":
+            return
+        state.selected = not state.selected
+        self._update_row(state)
+        self._refresh_selected_status()
+
+    def action_toggle_all(self) -> None:
+        if not self._checking_done or self._syncing or self._all_done:
+            return
+        changed = [s for s in self._rows.values() if s.status == "changed"]
+        if not changed:
+            return
+        all_selected = all(s.selected for s in changed)
+        for s in changed:
+            s.selected = not all_selected
+            self._update_row(s)
+        self._refresh_selected_status()
+
+    # ── Sync ───────────────────────────────────────────────────────────────────
+
+    def action_confirm(self) -> None:
+        if not self._checking_done or self._syncing or self._all_done:
+            return
+        to_sync = [s for s in self._rows.values() if s.selected]
+        if not to_sync:
+            return
+        self._syncing = True
+        self.add_class("syncing")
+        self.query_one("#btn-sync", Button).disabled = True
+        skip_btn = self.query_one("#btn-skip", Button)
+        skip_btn.label = "Cancel"
+        skip_btn.variant = "warning"
+        self._sync_worker = self.run_worker(self._run_syncs(to_sync), exclusive=True)
+
+    async def _run_syncs(self, selected: list[_RowState]) -> None:
+        total = len(selected)
+        bar = self.query_one("#progress", ProgressBar)
+        progress_label = self.query_one("#progress-label", Label)
+
+        for i, state in enumerate(selected):
+            state.status = "syncing"
+            self._update_row(state)
+            progress_label.update(f"Syncing {i + 1}/{total}: {state.record.remote_path}")
+            bar.progress = 0
+
+            def on_progress(ev: ProgressEvent, _bar: ProgressBar = bar) -> None:
+                _bar.progress = ev.percent()
+
+            try:
+                result, err = await _stream_sync(state.record, on_progress)
+            except asyncio.CancelledError:
+                state.status = "failed"
+                state.error = "Cancelled"
+                self._update_row(state)
+                self._on_sync_done(cancelled=True)
+                return
+
+            if result == "error":
+                state.status = "failed"
+                state.error = err
+            else:
+                bar.progress = 100
+                state.status = "done"
+            self._update_row(state)
+
+        self._on_sync_done(cancelled=False)
+
+    def _on_sync_done(self, *, cancelled: bool) -> None:
+        self._syncing = False
+        self._all_done = True
+        self.query_one("#progress-label", Label).update("")
+        skip_btn = self.query_one("#btn-skip", Button)
+        skip_btn.label = "Close"
+        skip_btn.variant = "success"
+        self.query_one("#status-line", Label).update(
+            "Sync cancelled." if cancelled else "Sync complete."
+        )
+
+    # ── Dismiss ────────────────────────────────────────────────────────────────
+
+    def action_skip_all(self) -> None:
+        if self._syncing:
+            if self._sync_worker is not None:
+                self._sync_worker.cancel()
+            return
+        if self._dry_run_worker is not None and not self._checking_done:
+            self._dry_run_worker.cancel()
+        self._safe_dismiss()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-sync":
+            self.action_confirm()
+        elif event.button.id == "btn-skip":
+            self.action_skip_all()
+
+    def _safe_dismiss(self) -> None:
+        if not self._dismissed:
+            self._dismissed = True
+            self.dismiss(None)
