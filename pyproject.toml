@@ -9,6 +9,7 @@ description = "Yazi-like terminal file browser for Dropbox, backed by rclone"
 requires-python = ">=3.11"
 dependencies = [
     "pillow>=10.0",
+    "pypdfium2>=4.0",
     "textual>=8.0",
     "rich>=13.0",
 ]

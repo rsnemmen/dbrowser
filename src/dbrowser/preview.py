@@ -39,6 +39,10 @@ IMAGE_MIME_PREFIXES = (
     "image/tiff",
 )
 
+PDF_EXTENSIONS = {".pdf"}
+PDF_MIME_PREFIXES = ("application/pdf",)
+MAX_PDF_PREVIEW_BYTES = 32 * 1024 * 1024
+
 TEXT_PREVIEW_BYTES = 8192
 MAX_IMAGE_PREVIEW_BYTES = 8 * 1024 * 1024
 DEFAULT_IMAGE_WIDTH = 48
@@ -76,6 +80,15 @@ def _is_image(entry: Entry) -> bool:
     return any(mime_type.startswith(prefix) for prefix in IMAGE_MIME_PREFIXES)
 
 
+def _is_pdf(entry: Entry) -> bool:
+    if "." in entry.name:
+        ext = "." + entry.name.rsplit(".", 1)[-1].lower()
+        if ext in PDF_EXTENSIONS:
+            return True
+    mime_type = entry.mime_type.lower()
+    return any(mime_type.startswith(prefix) for prefix in PDF_MIME_PREFIXES)
+
+
 def _metadata(
     entry: Entry,
     *,
@@ -110,19 +123,14 @@ def _pixel_style(foreground: tuple[int, int, int], background: tuple[int, int, i
     return f"rgb({fg_r},{fg_g},{fg_b}) on rgb({bg_r},{bg_g},{bg_b})"
 
 
-def _render_image(data: bytes, max_width: int, max_height: int) -> tuple[Text, tuple[int, int]]:
-    with Image.open(BytesIO(data)) as img:
-        rgba = img.convert("RGBA")
-        original_dimensions = rgba.size
-        background = Image.new("RGBA", rgba.size, (24, 24, 24, 255))
-        image = Image.alpha_composite(background, rgba).convert("RGB")
-
+def _pil_to_halfblock_text(image: Image.Image, max_width: int, max_height: int) -> tuple[Text, tuple[int, int]]:
+    original_dimensions = image.size
+    image = image.copy()
     image.thumbnail(_image_bounds(max_width, max_height), Image.Resampling.LANCZOS)
     if image.height % 2:
         padded = Image.new("RGB", (image.width, image.height + 1), (24, 24, 24))
         padded.paste(image, (0, 0))
         image = padded
-
     pixels = image.load()
     art = Text(no_wrap=True, end="")
     for y in range(0, image.height, 2):
@@ -134,6 +142,14 @@ def _render_image(data: bytes, max_width: int, max_height: int) -> tuple[Text, t
             art.append("\n")
     art.append("\n\n")
     return art, original_dimensions
+
+
+def _render_image(data: bytes, max_width: int, max_height: int) -> tuple[Text, tuple[int, int]]:
+    with Image.open(BytesIO(data)) as img:
+        rgba = img.convert("RGBA")
+        background = Image.new("RGBA", rgba.size, (24, 24, 24, 255))
+        image = Image.alpha_composite(background, rgba).convert("RGB")
+    return _pil_to_halfblock_text(image, max_width, max_height)
 
 
 async def _render_image_preview(
@@ -171,6 +187,42 @@ async def _render_image_preview(
     return Group(art, _metadata(entry, dimensions=dimensions))
 
 
+async def _render_pdf_preview(
+    entry: Entry,
+    remote_path: str,
+    max_width: int,
+    max_height: int,
+) -> object:
+    if entry.size > MAX_PDF_PREVIEW_BYTES:
+        return _metadata(
+            entry,
+            note=f"Preview unavailable: PDF is larger than {_fmt_bytes(MAX_PDF_PREVIEW_BYTES)}.",
+        )
+
+    data = await cat(remote_path, max_bytes=MAX_PDF_PREVIEW_BYTES + 1)
+    if len(data) > MAX_PDF_PREVIEW_BYTES:
+        return _metadata(
+            entry,
+            note=f"Preview unavailable: PDF is larger than {_fmt_bytes(MAX_PDF_PREVIEW_BYTES)}.",
+        )
+
+    try:
+        import pypdfium2 as pdfium  # noqa: PLC0415
+        pdf = pdfium.PdfDocument(data)
+        page_count = len(pdf)
+        if page_count == 0:
+            return _metadata(entry, note="Preview unavailable: empty PDF.")
+        page = pdf[0]
+        bounds = _image_bounds(max_width, max_height)
+        scale = max(bounds[0] / max(page.get_width(), 1), bounds[1] / max(page.get_height(), 1), 0.5)
+        pil_image = page.render(scale=scale).to_pil().convert("RGB")
+    except Exception:
+        return _metadata(entry, note="Preview unavailable: could not render PDF.")
+
+    art, dimensions = _pil_to_halfblock_text(pil_image, max_width, max_height)
+    return Group(art, _metadata(entry, dimensions=dimensions, note=f"Page 1 of {page_count}"))
+
+
 async def render(
     entry: Entry,
     remote_prefix: str,
@@ -187,6 +239,14 @@ async def render(
 
     if _is_image(entry):
         return await _render_image_preview(
+            entry,
+            remote_path,
+            max_width=max_width,
+            max_height=max_height,
+        )
+
+    if _is_pdf(entry):
+        return await _render_pdf_preview(
             entry,
             remote_path,
             max_width=max_width,
