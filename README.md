@@ -4,7 +4,7 @@ A yazi-style terminal file browser for a Dropbox remote configured in [rclone](h
 
 Browse your Dropbox files interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
 
-Target audience: Those who need to browser their Dropbox files in a headless Linux server.
+Target audience: Those who need to browse their Dropbox files in a headless Linux server.
 
 > **Disclaimer**
 > This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc. References to Dropbox in this repository are purely descriptive and refer to compatibility with the Dropbox backend exposed through `rclone`.
