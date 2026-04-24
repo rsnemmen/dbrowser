@@ -9,16 +9,16 @@ A Textual TUI that wraps `rclone` to give yazi-style interactive browsing of a D
 ## Stack
 
 - Python 3.11+
-- Textual **8.x** (note the major version — APIs differ from 0.x). `pyproject.toml` currently pins `textual>=0.80.0`, which is too loose — if you're touching dependencies, raise the floor to `>=8.0` to match what the code actually uses.
+- Textual **8.x** (note the major version — APIs differ from 0.x). `pyproject.toml` pins `textual>=8.0`.
 - `rclone` on `PATH`, with a remote named exactly `dropbox`
 
 ## Dev workflow
 
 ```bash
-pip install -e .          # editable install, puts `dropbox-cli` on PATH
-dropbox-cli                # run the app
-python -m dropbox_cli      # equivalent
-python -m py_compile src/dropbox_cli/*.py   # quick syntax check
+pip install -e .          # editable install, puts `dbrowser` on PATH
+dbrowser                   # run the app
+python -m dbrowser         # equivalent
+python -m py_compile src/dbrowser/*.py   # quick syntax check
 ```
 
 No test suite yet. Verification is manual against a real Dropbox remote (see `## Manual smoke test` below, or the original plan at `~/.claude/plans/i-want-to-create-luminous-sketch.md` for more detail).
@@ -29,7 +29,7 @@ No test suite yet. Verification is manual against a real Dropbox remote (see `##
 
 1. `rclone.check_installed()` — exits immediately if `rclone` is not on `PATH`.
 2. `config.find_remote()` — async check for a remote named `dropbox`. If absent, calls `config.run_interactive_setup()` (shells out to `rclone config`) and re-checks; exits if still absent.
-3. `DropboxApp(remote).run()` — TUI starts only after the above pass.
+3. `DbrowserApp(remote).run()` — TUI starts only after the above pass.
 
 ## Textual 8.x gotchas
 
@@ -39,7 +39,7 @@ No test suite yet. Verification is manual against a real Dropbox remote (see `##
 
 ## Rclone subprocess pattern
 
-All cloud I/O goes through `src/dropbox_cli/rclone.py`. When adding a new op:
+All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 
 - Async one-shot commands (output fits in memory): use the `_run(*args)` helper.
 - Streaming commands (copy / sync / anything with `--stats`): use `asyncio.create_subprocess_exec` and `async for line in proc.stderr` with `--use-json-log`. Parse via `progress.parse_log_line`. **Always** wrap the iteration in `try/finally` and kill the subprocess in `finally` — otherwise cancelled workers leak rclone processes.
@@ -54,7 +54,7 @@ All cloud I/O goes through `src/dropbox_cli/rclone.py`. When adding a new op:
 
 ## Cross-cutting state
 
-`DownloadLedger` (in `state.py`) is the only piece of session-wide state. It's created in `DropboxApp.__init__`, passed into `BrowserScreen`, appended to by the download modal on each successful transfer, and drained by the quit handler to populate the sync-diff screen. If a new feature needs session-wide state, extend the ledger rather than creating a parallel store.
+`DownloadLedger` (in `state.py`) is the only piece of session-wide state. It's created in `DbrowserApp.__init__`, passed into `BrowserScreen`, appended to by the download modal on each successful transfer, and drained by the quit handler to populate the sync-diff screen. If a new feature needs session-wide state, extend the ledger rather than creating a parallel store.
 
 ## File responsibilities
 
@@ -79,7 +79,7 @@ See also `rclone.md` at the repo root — canonical headless-auth walkthrough an
 
 ## Manual smoke test
 
-1. `pip install -e .` then `dropbox-cli` — confirm the browser mounts and the DataTable populates.
+1. `pip install -e .` then `dbrowser` — confirm the browser mounts and the DataTable populates.
 2. Navigate with `j`/`k`/`l`; preview pane should show syntax-highlighted content for a text file and a metadata summary for a binary.
 3. Press `d` on a small folder, accept/edit the destination, and verify files land on disk after progress completes.
 4. Edit one downloaded file locally, then quit with `q` — the sync-diff modal should list exactly that changed file. Choose **Sync** and confirm the file is updated on Dropbox.

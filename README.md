@@ -1,4 +1,4 @@
-# dropbox-cli
+# dbrowser
 
 A yazi-style terminal file browser for Dropbox, backed by [rclone](https://rclone.org/).
 
@@ -16,11 +16,11 @@ Browse your Dropbox folder tree interactively, preview files without downloading
 pip install -e .
 ```
 
-This puts a `dropbox-cli` entry point on your `PATH`.
+This puts a `dbrowser` entry point on your `PATH`.
 
 ## First run
 
-The first time you launch `dropbox-cli`, it will detect that no rclone remote named `dropbox` exists and drop you into `rclone config`. Follow the prompts exactly as shown:
+The first time you launch `dbrowser`, it will detect that no rclone remote named `dropbox` exists and drop you into `rclone config`. Follow the prompts exactly as shown:
 
 1. `n` — new remote
 2. Name: `dropbox` (must be this exact name)
@@ -31,12 +31,12 @@ The first time you launch `dropbox-cli`, it will detect that no rclone remote na
 7. Follow the headless-auth instructions: on a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, paste the token back.
 8. Confirm and quit config (`q`).
 
-`dropbox-cli` will then launch its TUI.
+`dbrowser` will then launch its TUI.
 
 ## Usage
 
 ```bash
-dropbox-cli
+dbrowser
 ```
 
 ### Keybindings
@@ -76,7 +76,7 @@ Sync is **one-way: local → Dropbox**. Deletions on disk propagate to Dropbox. 
 Module layout:
 
 ```
-src/dropbox_cli/
+src/dbrowser/
 ├── __main__.py     entry point
 ├── app.py          Textual App
 ├── browser.py      main browser screen (list + preview)

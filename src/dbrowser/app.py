@@ -6,10 +6,10 @@ from .browser import BrowserScreen
 from .state import DownloadLedger
 
 
-class DropboxApp(App):
-    """dropbox-cli — a yazi-style Dropbox file browser."""
+class DbrowserApp(App):
+    """dbrowser — a yazi-style Dropbox file browser."""
 
-    TITLE = "dropbox-cli"
+    TITLE = "dbrowser"
 
     def __init__(self, remote: str) -> None:
         super().__init__()

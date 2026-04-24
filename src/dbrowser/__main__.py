@@ -4,7 +4,7 @@ import asyncio
 import sys
 
 from . import rclone
-from .app import DropboxApp
+from .app import DbrowserApp
 from .config import REMOTE_NAME, find_remote, run_interactive_setup
 
 
@@ -29,7 +29,7 @@ def main() -> None:
             sys.exit(1)
 
     # 3. Launch the TUI
-    app = DropboxApp(remote=remote)
+    app = DbrowserApp(remote=remote)
     app.run()
 
 
