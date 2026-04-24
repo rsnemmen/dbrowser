@@ -237,10 +237,20 @@ class BrowserScreen(Screen):
     async def _fetch_preview(self, entry: Entry) -> None:
         base = self.current_path
         remote_prefix = f"{self._remote}:{base}/" if base else f"{self._remote}:"
+        preview_panel = self.query_one("#preview-panel", ScrollableContainer)
+        renderable = await preview_mod.render(
+            entry,
+            remote_prefix,
+            max_width=preview_panel.content_size.width,
+            max_height=preview_panel.content_size.height,
+        )
 
-        try:
-            renderable = await preview_mod.render(entry, remote_prefix)
-        except Exception:
+        table = self.query_one("#file-list", DataTable)
+        row = table.cursor_row
+        if not (0 <= row < len(self._filtered_entries)):
+            return
+        current_entry = self._filtered_entries[row]
+        if current_entry.path != entry.path or current_entry.name != entry.name:
             return
         self.query_one("#preview", Static).update(renderable)
 

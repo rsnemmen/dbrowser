@@ -59,6 +59,10 @@ dbrowser
 | `r`             | refresh current listing           |
 | `q`             | quit (triggers sync-back prompt)  |
 
+### Preview
+
+Text files render with syntax highlighting in the right-hand pane. Supported raster images (`png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`, `tiff`) render as a low-resolution terminal preview in the same pane; unsupported image types and oversized images fall back to metadata.
+
 ### Download
 
 Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/Dropbox-downloads/<remote-path>`, editable). Downloading the root of the configured Dropbox remote prints a size estimate and requires explicit confirmation — it won't happen by accident.
@@ -99,4 +103,4 @@ src/dbrowser/
 - Read-only on the remote: no rename, delete, or move. Edit locally and sync back instead.
 - No on-disk cache — re-opening the tool re-fetches listings.
 - Exit-sync is one-way (local → cloud); use `rclone bisync` manually for bidirectional.
-- Binary previews show metadata only — no image thumbnails.
+- Unsupported binary files still show metadata only.
