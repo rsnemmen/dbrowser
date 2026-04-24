@@ -1,8 +1,11 @@
 # dbrowser
 
-A yazi-style terminal file browser for Dropbox, backed by [rclone](https://rclone.org/).
+A yazi-style terminal file browser for a Dropbox remote configured in [rclone](https://rclone.org/).
 
-Browse your Dropbox folder tree interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
+Browse your Dropbox files interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
+
+> **Disclaimer**
+> This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc. References to Dropbox in this repository are purely descriptive and refer to compatibility with the Dropbox backend exposed through `rclone`.
 
 ## Requirements
 
@@ -28,7 +31,7 @@ The first time you launch `dbrowser`, it will detect that no rclone remote named
 4. `client_id` / `client_secret`: leave blank (press Enter)
 5. Edit advanced config? `n`
 6. **Use auto config?** `n` — important for headless servers
-7. Follow the headless-auth instructions: on a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, paste the token back.
+7. Follow the headless-auth instructions: on a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, then paste the token back.
 8. Confirm and quit config (`q`).
 
 `dbrowser` will then launch its TUI.
@@ -56,7 +59,7 @@ dbrowser
 
 ### Download
 
-Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/Dropbox-downloads/<remote-path>`, editable). Downloading the Dropbox root prints a size estimate and requires explicit confirmation — it won't happen by accident.
+Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/Dropbox-downloads/<remote-path>`, editable). Downloading the root of the configured Dropbox remote prints a size estimate and requires explicit confirmation — it won't happen by accident.
 
 Progress is shown live; files stream to disk as they transfer. Press `Esc` in the progress modal to cancel an in-flight download.
 
@@ -64,7 +67,7 @@ Progress is shown live; files stream to disk as they transfer. Press `Esc` in th
 
 If you downloaded any folders during a session and edited them in another terminal (or the same one, after exiting), quitting with `q` runs a `rclone sync --dry-run` for each downloaded folder and shows you exactly which files would change. You then choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
 
-Sync is **one-way: local → Dropbox**. Deletions on disk propagate to Dropbox. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
+Sync is **one-way: local → Dropbox remote**. Deletions on disk propagate to the configured Dropbox remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
 
 ## Architecture
 
