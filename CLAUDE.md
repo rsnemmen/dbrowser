@@ -21,7 +21,7 @@ python -m dbrowser         # equivalent
 python -m py_compile src/dbrowser/*.py   # quick syntax check
 ```
 
-No test suite yet. Verification is manual against a real Dropbox remote (see `## Manual smoke test` below, or the original plan at `~/.claude/plans/i-want-to-create-luminous-sketch.md` for more detail).
+No test suite yet. Verification is manual against a real Dropbox remote (see `## Manual smoke test` below).
 
 ## Startup flow
 
@@ -29,8 +29,8 @@ No test suite yet. Verification is manual against a real Dropbox remote (see `##
 
 1. `rclone.check_installed()` — exits immediately if `rclone` is not on `PATH`.
 2. `config.find_remote()` — async check for a remote named `dropbox`. If absent, calls `config.run_interactive_setup()` (shells out to `rclone config`) and re-checks; exits if still absent.
-3. `DbrowserApp(remote).run()` — TUI starts only after the above pass.
-4. After mount, the app reloads the tracked-download ledger and dry-runs startup sync checks for any previously downloaded folders that still exist locally.
+3. `DbrowserApp(remote)` — loads the tracked-download ledger during app init; if the ledger is unreadable, the app falls back to an empty one and surfaces the error as a notification after mount.
+4. `.run()` — TUI starts only after the above pass; `on_mount()` pushes `BrowserScreen` and schedules startup sync checks for any previously downloaded folders that still exist locally.
 
 ## Textual 8.x gotchas
 
@@ -67,10 +67,10 @@ All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 | `modals.py` | All `ModalScreen` subclasses (download path, download progress, sync diff, sync progress). |
 | `state.py` | `DownloadLedger` — persisted record of tracked downloads for startup + exit sync checks. |
 | `config.py` | Detect the `dropbox` remote; launch `rclone config` if missing. |
-| `preview.py` | Render an `Entry` as a Rich renderable for the preview pane. Text → syntax, binary → metadata. |
+| `preview.py` | Render an `Entry` as a Rich renderable for the preview pane. Text → syntax, raster images/PDFs → terminal preview, unsupported binaries → metadata. |
 | `app.py` / `__main__.py` | Textual App + CLI entry point. |
 
-See also `rclone.md` at the repo root — canonical headless-auth walkthrough and rclone command reference, not scratch notes.
+See also `README.md` for install, first-run headless auth, keybindings, and user-facing behavior.
 
 ## Common pitfalls
 
@@ -81,7 +81,7 @@ See also `rclone.md` at the repo root — canonical headless-auth walkthrough an
 ## Manual smoke test
 
 1. `pip install -e .` then `dbrowser` — confirm the browser mounts and the DataTable populates.
-2. Navigate with `j`/`k`/`l`; preview pane should show syntax-highlighted content for a text file and a metadata summary for a binary.
+2. Navigate with `j`/`k`/`l`; preview pane should show syntax-highlighted content for a text file, a terminal-rendered preview for a supported image or PDF, and a metadata summary for an unsupported binary.
 3. Press `d` on a small folder, accept/edit the destination, and verify files land on disk after progress completes.
 4. Restart `dbrowser` after editing one downloaded file locally — the sync-diff modal should appear at startup and list exactly that changed file. Choose **Skip** or **Sync** as appropriate.
 5. Quit with `q` after editing a tracked folder during the current session — the sync-diff modal should list the changed file. Choose **Sync** and confirm the file is updated on Dropbox.
