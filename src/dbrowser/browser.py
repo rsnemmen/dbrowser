@@ -90,6 +90,7 @@ class BrowserScreen(Screen):
         Binding("slash", "toggle_filter", "Filter", show=True),
         Binding("escape", "clear_filter", "", show=False),
         Binding("r", "refresh_listing", "Refresh", show=True),
+        Binding("s", "sync_tracked_downloads", "Sync", show=True),
         Binding("q", "quit_app", "Quit", show=True),
     ]
 
@@ -403,6 +404,15 @@ class BrowserScreen(Screen):
             self.notify(f"Cancelled download → {local_path}")
 
     # ── Quit ───────────────────────────────────────────────────────────────────
+
+    def action_sync_tracked_downloads(self) -> None:
+        self.run_worker(self._sync_tracked_downloads())
+
+    async def _sync_tracked_downloads(self) -> None:
+        await cast("DbrowserApp", self.app).sync_tracked_downloads(
+            status_callback=self._set_status,
+            reason="manual sync",
+        )
 
     def action_quit_app(self) -> None:
         self.run_worker(self._quit_with_sync())

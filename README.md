@@ -54,6 +54,7 @@ dbrowser
 | `h` / `←`       | parent directory                  |
 | `l` / `→` / `⏎` | enter directory                   |
 | `d`             | download current folder (or file) |
+| `s`             | sync all tracked downloads         |
 | `/`             | filter current folder by name     |
 | `Esc`           | clear filter                      |
 | `r`             | refresh current listing           |
@@ -73,7 +74,7 @@ Progress is shown live; files stream to disk as they transfer. Press `Esc` in th
 
 Downloaded folders stay tracked across launches in a small ledger at `$XDG_STATE_HOME/dbrowser/download-ledger.json` (or `~/.local/state/dbrowser/download-ledger.json` when `XDG_STATE_HOME` is unset).
 
-When `dbrowser` starts, it dry-runs `rclone sync` for each tracked folder and only prompts you for folders with local changes that have not been pushed yet. Quitting with `q` runs the same check again for any tracked folders, so edits made during the current session are caught too. In both cases, you choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
+When `dbrowser` starts, it dry-runs `rclone sync` for each tracked folder and only prompts you for folders with local changes that have not been pushed yet. Pressing `s` runs that same tracked-folder check on demand, and quitting with `q` runs it again for any tracked folders so edits made during the current session are caught too. In all cases, you choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
 
 Sync is **one-way: local → Dropbox remote**. Deletions on disk propagate to the configured Dropbox remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
 

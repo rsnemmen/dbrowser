@@ -67,9 +67,17 @@ class DbrowserApp(App):
                 return
 
             total = len(records)
+            if total == 0:
+                if status_callback is not None:
+                    status_callback("No tracked folders available for sync.")
+                return
+
             for index, record in enumerate(records, start=1):
                 if status_callback is not None:
                     status_callback(
                         f"Checking tracked folder {index}/{total} before {reason}…"
                     )
                 await run_sync_prompt(self, record)
+
+            if status_callback is not None:
+                status_callback("Sync check complete.")
