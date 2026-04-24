@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 
 from textual.app import App
 from textual.worker import Worker
@@ -43,9 +44,20 @@ class DbrowserApp(App):
     async def _run_startup_sync_check(self) -> None:
         await self.sync_tracked_downloads()
 
-    async def sync_tracked_downloads(self) -> None:
+    async def sync_tracked_downloads(
+        self,
+        *,
+        status_callback: Callable[[str], None] | None = None,
+        reason: str = "sync",
+    ) -> None:
         if self._sync_flow_lock is None:
             return
+
+        if status_callback is not None:
+            if self._sync_flow_lock.locked():
+                status_callback("Waiting for the current sync check to finish…")
+            else:
+                status_callback(f"Checking tracked folders before {reason}…")
 
         async with self._sync_flow_lock:
             try:
@@ -54,5 +66,10 @@ class DbrowserApp(App):
                 self.notify(str(exc), title="Download ledger")
                 return
 
-            for record in records:
+            total = len(records)
+            for index, record in enumerate(records, start=1):
+                if status_callback is not None:
+                    status_callback(
+                        f"Checking tracked folder {index}/{total} before {reason}…"
+                    )
                 await run_sync_prompt(self, record)

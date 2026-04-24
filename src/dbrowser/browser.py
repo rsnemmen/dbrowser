@@ -408,5 +408,8 @@ class BrowserScreen(Screen):
         self.run_worker(self._quit_with_sync())
 
     async def _quit_with_sync(self) -> None:
-        await cast("DbrowserApp", self.app).sync_tracked_downloads()
+        await cast("DbrowserApp", self.app).sync_tracked_downloads(
+            status_callback=self._set_status,
+            reason="exit",
+        )
         self.app.exit()
