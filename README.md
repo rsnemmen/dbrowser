@@ -18,10 +18,10 @@ Target audience: Those who need to browser their Dropbox files in a headless Lin
 ## Install
 
 ```bash
-pip install -e .
+curl -fsSL https://raw.githubusercontent.com/rsnemmen/dbrowser/main/install.sh | bash
 ```
 
-This puts a `dbrowser` entry point on your `PATH`.
+The installer sets up [uv](https://docs.astral.sh/uv/) if needed, installs `dbrowser` in an isolated environment, and offers to install `rclone` if it is not already on your `PATH`.
 
 ## First run
 
