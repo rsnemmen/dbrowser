@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Textual TUI that wraps `rclone` to give yazi-style interactive browsing of a Dropbox remote. Every cloud operation is an async subprocess — no daemon, no persistent state beyond the current session.
+A Textual TUI that wraps `rclone` to give yazi-style interactive browsing of a Dropbox remote. Every cloud operation is an async subprocess — no daemon, with persistent state limited to a tracked-download ledger.
 
 ## Stack
 
@@ -30,6 +30,7 @@ No test suite yet. Verification is manual against a real Dropbox remote (see `##
 1. `rclone.check_installed()` — exits immediately if `rclone` is not on `PATH`.
 2. `config.find_remote()` — async check for a remote named `dropbox`. If absent, calls `config.run_interactive_setup()` (shells out to `rclone config`) and re-checks; exits if still absent.
 3. `DbrowserApp(remote).run()` — TUI starts only after the above pass.
+4. After mount, the app reloads the tracked-download ledger and dry-runs startup sync checks for any previously downloaded folders that still exist locally.
 
 ## Textual 8.x gotchas
 
@@ -49,12 +50,12 @@ All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 
 - **One remote, named `dropbox`.** Hardcoded in `config.REMOTE_NAME`. Multi-remote support is an explicit v1 non-goal.
 - **Sync is one-way, local → cloud.** Deletions on disk propagate to Dropbox. Bidirectional (`rclone bisync`) is out of scope — don't wire it in without confirming.
-- **Download ledger is in-memory only.** If the user quits without confirming sync, nothing is synced. This is intentional: no silent background state.
+- **Download ledger persists tracked folders across launches.** Startup and quit both use it to offer one-way local → cloud syncs for previously downloaded folders.
 - **First-run auth is delegated to `rclone config`.** We don't reimplement the OAuth dance. `config.run_interactive_setup()` just prints guidance and shells out.
 
 ## Cross-cutting state
 
-`DownloadLedger` (in `state.py`) is the only piece of session-wide state. It's created in `DbrowserApp.__init__`, passed into `BrowserScreen`, appended to by the download modal on each successful transfer, and drained by the quit handler to populate the sync-diff screen. If a new feature needs session-wide state, extend the ledger rather than creating a parallel store.
+`DownloadLedger` (in `state.py`) is the only cross-session state. It's loaded in `DbrowserApp.__init__`, passed into `BrowserScreen`, updated after each successful download, pruned when local paths disappear, and reused by both startup and quit-time sync prompts. If a new feature needs persistent tracking, extend the ledger rather than creating a parallel store.
 
 ## File responsibilities
 
@@ -64,7 +65,7 @@ All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 | `progress.py` | Parse `--use-json-log` stderr. Pure functions, no I/O. |
 | `browser.py` | Main `BrowserScreen` — DataTable + preview + filter + navigation. |
 | `modals.py` | All `ModalScreen` subclasses (download path, download progress, sync diff, sync progress). |
-| `state.py` | `DownloadLedger` — in-memory record of downloaded folders for the exit-sync flow. |
+| `state.py` | `DownloadLedger` — persisted record of tracked downloads for startup + exit sync checks. |
 | `config.py` | Detect the `dropbox` remote; launch `rclone config` if missing. |
 | `preview.py` | Render an `Entry` as a Rich renderable for the preview pane. Text → syntax, binary → metadata. |
 | `app.py` / `__main__.py` | Textual App + CLI entry point. |
@@ -82,4 +83,5 @@ See also `rclone.md` at the repo root — canonical headless-auth walkthrough an
 1. `pip install -e .` then `dbrowser` — confirm the browser mounts and the DataTable populates.
 2. Navigate with `j`/`k`/`l`; preview pane should show syntax-highlighted content for a text file and a metadata summary for a binary.
 3. Press `d` on a small folder, accept/edit the destination, and verify files land on disk after progress completes.
-4. Edit one downloaded file locally, then quit with `q` — the sync-diff modal should list exactly that changed file. Choose **Sync** and confirm the file is updated on Dropbox.
+4. Restart `dbrowser` after editing one downloaded file locally — the sync-diff modal should appear at startup and list exactly that changed file. Choose **Skip** or **Sync** as appropriate.
+5. Quit with `q` after editing a tracked folder during the current session — the sync-diff modal should list the changed file. Choose **Sync** and confirm the file is updated on Dropbox.

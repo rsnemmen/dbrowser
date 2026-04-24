@@ -69,18 +69,20 @@ Pressing `d` opens a confirmation modal showing the remote path and a default lo
 
 Progress is shown live; files stream to disk as they transfer. Press `Esc` in the progress modal to cancel an in-flight download.
 
-### Sync back on exit
+### Startup sync check and sync back on exit
 
-If you downloaded any folders during a session and edited them in another terminal (or the same one, after exiting), quitting with `q` runs a `rclone sync --dry-run` for each downloaded folder and shows you exactly which files would change. You then choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
+Downloaded folders stay tracked across launches in a small ledger at `$XDG_STATE_HOME/dbrowser/download-ledger.json` (or `~/.local/state/dbrowser/download-ledger.json` when `XDG_STATE_HOME` is unset).
+
+When `dbrowser` starts, it dry-runs `rclone sync` for each tracked folder and only prompts you for folders with local changes that have not been pushed yet. Quitting with `q` runs the same check again for any tracked folders, so edits made during the current session are caught too. In both cases, you choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
 
 Sync is **one-way: local → Dropbox remote**. Deletions on disk propagate to the configured Dropbox remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
 
 ## Architecture
 
 - Single-process Python app using [Textual](https://textual.textualize.io/) for the TUI.
-- Every cloud operation is an async `rclone` subprocess. No daemon, no persistent state.
+- Every cloud operation is an async `rclone` subprocess. No daemon; persistent state is limited to the tracked-download ledger.
 - Listings stream in as background workers — the UI stays responsive even on slow connections.
-- The download ledger is in-memory only; closing the app without confirming sync means no sync.
+- The download ledger is persisted on disk so startup and quit can both detect local edits to tracked folders.
 
 Module layout:
 
@@ -102,5 +104,6 @@ src/dbrowser/
 - One remote only, hardcoded as `dropbox`.
 - Read-only on the remote: no rename, delete, or move. Edit locally and sync back instead.
 - No on-disk cache — re-opening the tool re-fetches listings.
+- Tracked download state is persistent, but remote listings are not cached across launches.
 - Exit-sync is one-way (local → cloud); use `rclone bisync` manually for bidirectional.
 - Unsupported binary files still show metadata only.

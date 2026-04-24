@@ -4,7 +4,7 @@ import asyncio
 from enum import StrEnum
 from pathlib import Path
 
-from textual.app import ComposeResult
+from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
@@ -20,6 +20,41 @@ class TransferOutcome(StrEnum):
     SUCCESS = "success"
     CANCELLED = "cancelled"
     ERROR = "error"
+
+
+async def collect_sync_events(record: DownloadRecord) -> list[SyncEvent]:
+    events: list[SyncEvent] = []
+    async for event in rclone.sync(
+        str(record.local_path),
+        record.remote_path,
+        dry_run=True,
+    ):
+        if isinstance(event, SyncEvent):
+            events.append(event)
+    return events
+
+
+async def run_sync_prompt(app: App, record: DownloadRecord) -> TransferOutcome | None:
+    try:
+        events = await collect_sync_events(record)
+    except rclone.RcloneError as exc:
+        app.notify(
+            f"Sync check failed → {record.remote_path}: {exc}",
+            title="Sync check error",
+        )
+        return None
+
+    if not events:
+        return None
+
+    should_sync: bool = await app.push_screen_wait(SyncModal(record, sync_events=events))
+    if not should_sync:
+        return None
+
+    outcome: TransferOutcome = await app.push_screen_wait(SyncProgressModal(record))
+    if outcome == TransferOutcome.CANCELLED:
+        app.notify(f"Cancelled sync → {record.remote_path}")
+    return outcome
 
 
 # ── Download path modal ────────────────────────────────────────────────────────
@@ -201,10 +236,15 @@ class SyncModal(ModalScreen[bool]):
 
     BINDINGS = [Binding("escape", "skip", show=False)]
 
-    def __init__(self, record: DownloadRecord) -> None:
+    def __init__(
+        self,
+        record: DownloadRecord,
+        sync_events: list[SyncEvent] | None = None,
+    ) -> None:
         super().__init__()
         self._record = record
-        self._sync_events: list[SyncEvent] = []
+        self._sync_events = list(sync_events or [])
+        self._has_precomputed_events = sync_events is not None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -219,36 +259,35 @@ class SyncModal(ModalScreen[bool]):
                 yield Button("Skip", variant="default", id="btn-skip")
 
     def on_mount(self) -> None:
+        if self._has_precomputed_events:
+            self.query_one("#spinner", LoadingIndicator).add_class("done")
+            self._render_events()
+            return
         self.run_worker(self._run_dry_run(), exclusive=True)
 
     async def _run_dry_run(self) -> None:
         changes_widget = self.query_one("#changes", Static)
         spinner = self.query_one("#spinner", LoadingIndicator)
-        sync_btn = self.query_one("#btn-sync", Button)
-
-        events: list[SyncEvent] = []
         try:
-            async for ev in rclone.sync(
-                str(self._record.local_path),
-                self._record.remote_path,
-                dry_run=True,
-            ):
-                if isinstance(ev, SyncEvent):
-                    events.append(ev)
+            self._sync_events = await collect_sync_events(self._record)
         except rclone.RcloneError as exc:
             changes_widget.update(f"[red]Dry-run error: {exc}[/red]")
             spinner.add_class("done")
             return
 
         spinner.add_class("done")
-        self._sync_events = events
+        self._render_events()
 
-        if not events:
+    def _render_events(self) -> None:
+        changes_widget = self.query_one("#changes", Static)
+        sync_btn = self.query_one("#btn-sync", Button)
+
+        if not self._sync_events:
             changes_widget.update("[dim]No local changes detected — nothing to sync.[/dim]")
         else:
-            lines = [f"  {e.operation}  {e.path}" for e in events[:20]]
-            if len(events) > 20:
-                lines.append(f"  … and {len(events) - 20} more")
+            lines = [f"  {event.operation}  {event.path}" for event in self._sync_events[:20]]
+            if len(self._sync_events) > 20:
+                lines.append(f"  … and {len(self._sync_events) - 20} more")
             changes_widget.update("\n".join(lines))
             sync_btn.add_class("visible")
 

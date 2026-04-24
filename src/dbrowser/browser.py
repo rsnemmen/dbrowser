@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -16,7 +16,10 @@ from . import preview as preview_mod
 from . import rclone
 from .modals import DownloadModal, DownloadProgressModal, TransferOutcome
 from .rclone import Entry
-from .state import DownloadLedger
+from .state import DownloadLedger, LedgerError
+
+if TYPE_CHECKING:
+    from .app import DbrowserApp
 
 
 class BrowserScreen(Screen):
@@ -391,7 +394,10 @@ class BrowserScreen(Screen):
             DownloadProgressModal(remote_path=remote_path, local_path=local_path)
         )
         if outcome == TransferOutcome.SUCCESS:
-            self._ledger.record(remote_path, local_path)
+            try:
+                self._ledger.record(remote_path, local_path)
+            except LedgerError as exc:
+                self.notify(str(exc), title="Download ledger")
             self.notify(f"Downloaded → {local_path}", title="Download complete")
         elif outcome == TransferOutcome.CANCELLED:
             self.notify(f"Cancelled download → {local_path}")
@@ -402,13 +408,5 @@ class BrowserScreen(Screen):
         self.run_worker(self._quit_with_sync())
 
     async def _quit_with_sync(self) -> None:
-        from .modals import SyncModal, SyncProgressModal
-
-        pending = self._ledger.pending_syncs()
-        for record in pending:
-            should_sync: bool = await self.app.push_screen_wait(SyncModal(record))
-            if should_sync:
-                outcome = await self.app.push_screen_wait(SyncProgressModal(record))
-                if outcome == TransferOutcome.CANCELLED:
-                    self.notify(f"Cancelled sync → {record.remote_path}")
+        await cast("DbrowserApp", self.app).sync_tracked_downloads()
         self.app.exit()
