@@ -76,6 +76,12 @@ def parse_log_line(line: bytes | str) -> tuple[ProgressEvent | SyncEvent | None,
             elapsed=s.get("elapsedTime", 0.0),
         ), None
 
+    skipped = data.get("skipped")
+    if skipped:
+        op = "delete" if skipped == "remove directory" else skipped
+        path = data.get("object", "")
+        return SyncEvent(operation=op, path=path, is_dry_run=True), None
+
     # Dry-run change lines: "NOTICE: Would copy: path/to/file"
     # or just "Would copy: path/to/file"
     clean = msg.removeprefix("NOTICE: ").strip()
