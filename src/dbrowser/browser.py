@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
 
@@ -13,12 +14,14 @@ from textual.widgets import DataTable, Footer, Input, Label, Static
 
 from . import preview as preview_mod
 from . import rclone
-from .modals import DownloadModal, DownloadProgressModal
+from .modals import DownloadModal, DownloadProgressModal, TransferOutcome
 from .rclone import Entry
 from .state import DownloadLedger
 
 
 class BrowserScreen(Screen):
+    LISTING_CACHE_SIZE = 32
+
     DEFAULT_CSS = """
     BrowserScreen {
         layout: vertical;
@@ -96,9 +99,9 @@ class BrowserScreen(Screen):
         self._ledger = ledger
         self._all_entries: list[Entry] = []
         self._filtered_entries: list[Entry] = []
+        self._listing_cache: OrderedDict[str, list[Entry]] = OrderedDict()
         self._filter_active: bool = False
         self._preview_timer: Optional[Timer] = None
-        self._path_stack: list[str] = []  # navigation history
 
     # ── Layout ─────────────────────────────────────────────────────────────────
 
@@ -145,21 +148,45 @@ class BrowserScreen(Screen):
             full = base
         return f"{self._remote}:{full}" if full else f"{self._remote}:"
 
+    def _cache_listing(self, path: str, entries: list[Entry]) -> None:
+        self._listing_cache[path] = list(entries)
+        self._listing_cache.move_to_end(path)
+        while len(self._listing_cache) > self.LISTING_CACHE_SIZE:
+            self._listing_cache.popitem(last=False)
+
+    def _get_cached_listing(self, path: str) -> list[Entry] | None:
+        entries = self._listing_cache.get(path)
+        if entries is None:
+            return None
+        self._listing_cache.move_to_end(path)
+        return list(entries)
+
+    def _show_listing(self, entries: list[Entry]) -> None:
+        self._all_entries = list(entries)
+        self._apply_filter(self.filter_text)
+        self._schedule_preview()
+
     def _load_listing(self, path: str) -> None:
+        cached_entries = self._get_cached_listing(path)
+        if cached_entries is not None:
+            self._show_listing(cached_entries)
+            return
+
         self._set_status("listing…")
         remote_path = f"{self._remote}:{path}" if path else f"{self._remote}:"
-        self.run_worker(self._fetch_listing(remote_path), exclusive=True)
+        self.run_worker(self._fetch_listing(path, remote_path), exclusive=True)
 
-    async def _fetch_listing(self, remote_path: str) -> None:
+    async def _fetch_listing(self, path: str, remote_path: str) -> None:
         try:
             entries = await rclone.lsjson(remote_path)
         except rclone.RcloneError as exc:
-            self._set_status(f"[red]Error: {exc}[/red]")
+            if path == self.current_path:
+                self._set_status(f"[red]Error: {exc}[/red]")
             return
-        self._all_entries = entries
-        self._apply_filter(self.filter_text)
-        self._set_status(f"{len(entries)} items")
-        self._schedule_preview()
+        self._cache_listing(path, entries)
+        if path != self.current_path:
+            return
+        self._show_listing(entries)
 
     def _populate_table(self, entries: list[Entry]) -> None:
         table = self.query_one("#file-list", DataTable)
@@ -208,23 +235,11 @@ class BrowserScreen(Screen):
             self.run_worker(self._fetch_preview(entry), exclusive=True)
 
     async def _fetch_preview(self, entry: Entry) -> None:
-        # Build the full remote path for this entry
         base = self.current_path
-        rel = entry.path  # path relative to the listed dir (just the filename)
-        if base:
-            full_remote = f"{self._remote}:{base}/{rel}"
-        else:
-            full_remote = f"{self._remote}:{rel}"
-
-        # Use remote_prefix = "{remote}:{base}/" for the preview helper
         remote_prefix = f"{self._remote}:{base}/" if base else f"{self._remote}:"
 
-        # Override entry.path to be the full relative path for cat()
-        from dataclasses import replace
-        entry_for_preview = replace(entry, path=rel)
-
         try:
-            renderable = await preview_mod.render(entry_for_preview, remote_prefix)
+            renderable = await preview_mod.render(entry, remote_prefix)
         except Exception:
             return
         self.query_one("#preview", Static).update(renderable)
@@ -283,6 +298,7 @@ class BrowserScreen(Screen):
         # For files, preview is already shown; do nothing extra
 
     def action_refresh_listing(self) -> None:
+        self._listing_cache.pop(self.current_path, None)
         self._load_listing(self.current_path)
 
     # ── Filter ─────────────────────────────────────────────────────────────────
@@ -327,7 +343,7 @@ class BrowserScreen(Screen):
             if entry.is_dir:
                 rel = f"{self.current_path}/{entry.name}" if self.current_path else entry.name
                 remote_path = f"{self._remote}:{rel}"
-                default_local = Path.home() / "Dropbox-downloads" / rel.replace("/", Path.sep)
+                default_local = Path.home() / "Dropbox-downloads" / Path(rel)
             else:
                 rel = f"{self.current_path}/{entry.name}" if self.current_path else entry.name
                 remote_path = f"{self._remote}:{rel}"
@@ -338,10 +354,6 @@ class BrowserScreen(Screen):
             remote_path = self._remote_path()
             default_local = Path.home() / "Dropbox-downloads" / (rel or "")
 
-        is_root = not self.current_path and (
-            not (0 <= row < len(self._filtered_entries)) or self._filtered_entries[row].is_dir is False
-        )
-        # Simpler root check: current_path is empty and no specific dir selected
         is_root = remote_path == f"{self._remote}:"
 
         remote_size = None
@@ -365,11 +377,14 @@ class BrowserScreen(Screen):
             return
 
         local_path.mkdir(parents=True, exist_ok=True)
-        await self.app.push_screen_wait(
+        outcome = await self.app.push_screen_wait(
             DownloadProgressModal(remote_path=remote_path, local_path=local_path)
         )
-        self._ledger.record(remote_path, local_path)
-        self.notify(f"Downloaded → {local_path}", title="Download complete")
+        if outcome == TransferOutcome.SUCCESS:
+            self._ledger.record(remote_path, local_path)
+            self.notify(f"Downloaded → {local_path}", title="Download complete")
+        elif outcome == TransferOutcome.CANCELLED:
+            self.notify(f"Cancelled download → {local_path}")
 
     # ── Quit ───────────────────────────────────────────────────────────────────
 
@@ -383,5 +398,7 @@ class BrowserScreen(Screen):
         for record in pending:
             should_sync: bool = await self.app.push_screen_wait(SyncModal(record))
             if should_sync:
-                await self.app.push_screen_wait(SyncProgressModal(record))
+                outcome = await self.app.push_screen_wait(SyncProgressModal(record))
+                if outcome == TransferOutcome.CANCELLED:
+                    self.notify(f"Cancelled sync → {record.remote_path}")
         self.app.exit()

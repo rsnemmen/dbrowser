@@ -58,11 +58,11 @@ dbrowser
 
 Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/Dropbox-downloads/<remote-path>`, editable). Downloading the Dropbox root prints a size estimate and requires explicit confirmation — it won't happen by accident.
 
-Progress is shown live; files stream to disk as they transfer.
+Progress is shown live; files stream to disk as they transfer. Press `Esc` in the progress modal to cancel an in-flight download.
 
 ### Sync back on exit
 
-If you downloaded any folders during a session and edited them in another terminal (or the same one, after exiting), quitting with `q` runs a `rclone sync --dry-run` for each downloaded folder and shows you exactly which files would change. You then choose **Sync** or **Skip** per folder.
+If you downloaded any folders during a session and edited them in another terminal (or the same one, after exiting), quitting with `q` runs a `rclone sync --dry-run` for each downloaded folder and shows you exactly which files would change. You then choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
 
 Sync is **one-way: local → Dropbox**. Deletions on disk propagate to Dropbox. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
 

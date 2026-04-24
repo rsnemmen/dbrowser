@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from enum import StrEnum
 from pathlib import Path
 
 from textual.app import ComposeResult
@@ -7,10 +9,17 @@ from textual.binding import Binding
 from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, LoadingIndicator, ProgressBar, Static
+from textual.worker import Worker
 
 from . import rclone
 from .progress import ProgressEvent, SyncEvent, _fmt_bytes
 from .state import DownloadRecord
+
+
+class TransferOutcome(StrEnum):
+    SUCCESS = "success"
+    CANCELLED = "cancelled"
+    ERROR = "error"
 
 
 # ── Download path modal ────────────────────────────────────────────────────────
@@ -78,8 +87,8 @@ class DownloadModal(ModalScreen[Path | None]):
 
 # ── Download progress modal ────────────────────────────────────────────────────
 
-class DownloadProgressModal(ModalScreen[bool]):
-    """Shows rclone copy progress; dismisses True on success."""
+class DownloadProgressModal(ModalScreen[TransferOutcome]):
+    """Shows rclone copy progress and supports cancellation."""
 
     DEFAULT_CSS = """
     DownloadProgressModal > Vertical {
@@ -92,15 +101,22 @@ class DownloadProgressModal(ModalScreen[bool]):
     DownloadProgressModal Label { margin-bottom: 1; }
     DownloadProgressModal ProgressBar { margin-bottom: 1; }
     DownloadProgressModal #speed { color: $text-muted; }
+    DownloadProgressModal #btn-row { layout: horizontal; height: auto; margin-top: 1; }
+    DownloadProgressModal Button { margin-right: 1; }
     DownloadProgressModal #btn-done { display: none; }
+    DownloadProgressModal.done #btn-cancel { display: none; }
     DownloadProgressModal.done #btn-done { display: block; }
     DownloadProgressModal.done #spinner { display: none; }
     """
+
+    BINDINGS = [Binding("escape", "cancel_or_close", show=False)]
 
     def __init__(self, remote_path: str, local_path: Path) -> None:
         super().__init__()
         self._remote_path = remote_path
         self._local_path = local_path
+        self._copy_worker: Worker[None] | None = None
+        self._outcome: TransferOutcome | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -109,16 +125,34 @@ class DownloadProgressModal(ModalScreen[bool]):
             yield ProgressBar(total=100, show_eta=True, id="progress")
             yield Label("", id="speed")
             yield LoadingIndicator(id="spinner")
-            yield Button("Done ✓", variant="success", id="btn-done")
+            with Center(id="btn-row"):
+                yield Button("Cancel", variant="default", id="btn-cancel")
+                yield Button("Done ✓", variant="success", id="btn-done")
 
     def on_mount(self) -> None:
         self._run_copy()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(True)
+        if event.button.id == "btn-cancel":
+            self.action_cancel_or_close()
+            return
+        self.dismiss(self._outcome or TransferOutcome.ERROR)
+
+    def action_cancel_or_close(self) -> None:
+        if self._outcome is not None:
+            self.dismiss(self._outcome)
+            return
+        if self._copy_worker is not None:
+            self.query_one("#speed", Label).update("[yellow]Cancelling download…[/yellow]")
+            self._copy_worker.cancel()
 
     def _run_copy(self) -> None:
-        self.run_worker(self._do_copy(), exclusive=True)
+        self._copy_worker = self.run_worker(self._do_copy(), exclusive=True)
+
+    def _finish(self, outcome: TransferOutcome, message: str) -> None:
+        self._outcome = outcome
+        self.query_one("#speed", Label).update(message)
+        self.add_class("done")
 
     async def _do_copy(self) -> None:
         bar = self.query_one("#progress", ProgressBar)
@@ -131,11 +165,15 @@ class DownloadProgressModal(ModalScreen[bool]):
                         f"{_fmt_bytes(ev.bytes_done)} / {_fmt_bytes(ev.total_bytes)}"
                         f"  •  {ev.speed_str()}"
                     )
-            bar.progress = 100
-            self.add_class("done")
+        except asyncio.CancelledError:
+            self.dismiss(TransferOutcome.CANCELLED)
+            return
         except rclone.RcloneError as exc:
-            speed_label.update(f"[red]Error: {exc}[/red]")
-            self.add_class("done")
+            self._finish(TransferOutcome.ERROR, f"[red]Error: {exc}[/red]")
+            return
+
+        bar.progress = 100
+        self._finish(TransferOutcome.SUCCESS, "[green]Download complete ✓[/green]")
 
 
 # ── Sync-on-exit modal ─────────────────────────────────────────────────────────
@@ -224,8 +262,8 @@ class SyncModal(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class SyncProgressModal(ModalScreen[None]):
-    """Shows rclone sync progress; auto-dismisses when done."""
+class SyncProgressModal(ModalScreen[TransferOutcome]):
+    """Shows rclone sync progress and supports cancellation."""
 
     DEFAULT_CSS = """
     SyncProgressModal > Vertical {
@@ -238,14 +276,21 @@ class SyncProgressModal(ModalScreen[None]):
     SyncProgressModal Label { margin-bottom: 1; }
     SyncProgressModal ProgressBar { margin-bottom: 1; }
     SyncProgressModal #status { color: $text-muted; }
+    SyncProgressModal #btn-row { layout: horizontal; height: auto; margin-top: 1; }
+    SyncProgressModal Button { margin-right: 1; }
     SyncProgressModal #btn-done { display: none; }
+    SyncProgressModal.done #btn-cancel { display: none; }
     SyncProgressModal.done #btn-done { display: block; }
     SyncProgressModal.done #spinner { display: none; }
     """
 
+    BINDINGS = [Binding("escape", "cancel_or_close", show=False)]
+
     def __init__(self, record: DownloadRecord) -> None:
         super().__init__()
         self._record = record
+        self._sync_worker: Worker[None] | None = None
+        self._outcome: TransferOutcome | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -256,13 +301,31 @@ class SyncProgressModal(ModalScreen[None]):
             yield ProgressBar(total=100, show_eta=True, id="progress")
             yield Label("", id="status")
             yield LoadingIndicator(id="spinner")
-            yield Button("Done ✓", variant="success", id="btn-done")
+            with Center(id="btn-row"):
+                yield Button("Cancel", variant="default", id="btn-cancel")
+                yield Button("Done ✓", variant="success", id="btn-done")
 
     def on_mount(self) -> None:
-        self.run_worker(self._do_sync(), exclusive=True)
+        self._sync_worker = self.run_worker(self._do_sync(), exclusive=True)
 
-    def on_button_pressed(self, _: Button.Pressed) -> None:
-        self.dismiss(None)
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-cancel":
+            self.action_cancel_or_close()
+            return
+        self.dismiss(self._outcome or TransferOutcome.ERROR)
+
+    def action_cancel_or_close(self) -> None:
+        if self._outcome is not None:
+            self.dismiss(self._outcome)
+            return
+        if self._sync_worker is not None:
+            self.query_one("#status", Label).update("[yellow]Cancelling sync…[/yellow]")
+            self._sync_worker.cancel()
+
+    def _finish(self, outcome: TransferOutcome, message: str) -> None:
+        self._outcome = outcome
+        self.query_one("#status", Label).update(message)
+        self.add_class("done")
 
     async def _do_sync(self) -> None:
         bar = self.query_one("#progress", ProgressBar)
@@ -279,9 +342,12 @@ class SyncProgressModal(ModalScreen[None]):
                         f"{_fmt_bytes(ev.bytes_done)} / {_fmt_bytes(ev.total_bytes)}"
                         f"  •  {ev.speed_str()}"
                     )
-            bar.progress = 100
-            status.update("[green]Sync complete ✓[/green]")
+        except asyncio.CancelledError:
+            self.dismiss(TransferOutcome.CANCELLED)
+            return
         except rclone.RcloneError as exc:
-            status.update(f"[red]Error: {exc}[/red]")
-        finally:
-            self.add_class("done")
+            self._finish(TransferOutcome.ERROR, f"[red]Error: {exc}[/red]")
+            return
+
+        bar.progress = 100
+        self.dismiss(TransferOutcome.SUCCESS)
