@@ -106,21 +106,30 @@ async def lsjson(remote_path: str) -> list[Entry]:
 
 
 async def cat(remote_path: str, max_bytes: int = 8192) -> bytes:
-    """Fetch the first max_bytes of a remote file."""
+    """Fetch up to max_bytes from a remote file."""
+    if max_bytes <= 0:
+        return b""
+
     proc = await asyncio.create_subprocess_exec(
         RCLONE, "cat", remote_path,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
+    data = bytearray()
     try:
-        data = await asyncio.wait_for(proc.stdout.read(max_bytes), timeout=15.0)
-    except asyncio.TimeoutError:
-        data = b""
+        async with asyncio.timeout(15.0):
+            while len(data) < max_bytes:
+                chunk = await proc.stdout.read(min(65536, max_bytes - len(data)))
+                if not chunk:
+                    break
+                data.extend(chunk)
+    except TimeoutError:
+        pass
     finally:
         if proc.returncode is None:
             proc.kill()
         await proc.wait()
-    return data
+    return bytes(data)
 
 
 async def size(remote_path: str) -> RemoteSize:
