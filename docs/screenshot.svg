@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="452" viewBox="0 0 960 452">
+  <defs>
+    <style>
+      .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace; font-size: 13px; }
+      .sm   { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace; font-size: 12px; }
+    </style>
+    <clipPath id="win">
+      <rect width="960" height="452" rx="10"/>
+    </clipPath>
+    <clipPath id="book">
+      <rect x="689" y="89" width="160" height="190" rx="4"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#win)">
+
+    <!-- ── Main background ── -->
+    <rect width="960" height="452" fill="#1e1e2e"/>
+
+    <!-- ── Title bar ── -->
+    <rect width="960" height="36" fill="#262637"/>
+    <circle cx="20" cy="18" r="6" fill="#ff5f57"/>
+    <circle cx="40" cy="18" r="6" fill="#febc2e"/>
+    <circle cx="60" cy="18" r="6" fill="#28c840"/>
+    <text x="480" y="23" class="sm" fill="#9090a8" text-anchor="middle">dbrowser</text>
+
+    <!-- ── Breadcrumb ── -->
+    <rect x="0" y="36" width="960" height="26" fill="#2a3a52"/>
+    <text x="12" y="54" class="mono" fill="#e8e8f0" font-weight="bold">&#x1F4E6; dropbox:/Documents/Books</text>
+
+    <!-- ── Table header (left pane) ── -->
+    <rect x="0" y="62" width="575" height="22" fill="#262637"/>
+    <text y="77" class="sm" fill="#9090a8">
+      <tspan x="36">Name</tspan>
+      <tspan x="476" text-anchor="end">Size</tspan>
+      <tspan x="570" text-anchor="end">Modified</tspan>
+    </text>
+
+    <!-- ── Row 1: .. ── -->
+    <rect x="0" y="84" width="575" height="22" fill="#1e1e2e"/>
+    <text y="99" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C1;</tspan>
+      <tspan x="36">..</tspan>
+      <tspan x="476" text-anchor="end" fill="#9090a8">—</tspan>
+      <tspan x="570" text-anchor="end" fill="#9090a8">—</tspan>
+    </text>
+
+    <!-- ── Row 2: Computing/ (zebra) ── -->
+    <rect x="0" y="106" width="575" height="22" fill="#23232f"/>
+    <text y="121" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C1;</tspan>
+      <tspan x="36">Computing/</tspan>
+      <tspan x="476" text-anchor="end" fill="#9090a8">—</tspan>
+      <tspan x="570" text-anchor="end">2026-03-12</tspan>
+    </text>
+
+    <!-- ── Row 3: Physics/ ── -->
+    <rect x="0" y="128" width="575" height="22" fill="#1e1e2e"/>
+    <text y="143" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C1;</tspan>
+      <tspan x="36">Physics/</tspan>
+      <tspan x="476" text-anchor="end" fill="#9090a8">—</tspan>
+      <tspan x="570" text-anchor="end">2026-04-02</tspan>
+    </text>
+
+    <!-- ── Row 4: rclone-handbook.pdf — CURSOR ── -->
+    <rect x="0" y="150" width="575" height="22" fill="#0178d4"/>
+    <text y="165" class="mono" fill="#ffffff">
+      <tspan x="8">&#x1F4D5;</tspan>
+      <tspan x="36">rclone-handbook.pdf</tspan>
+      <tspan x="476" text-anchor="end">4.2 MB</tspan>
+      <tspan x="570" text-anchor="end">2026-02-18</tspan>
+    </text>
+
+    <!-- ── Row 5: textual-cookbook.pdf (zebra) ── -->
+    <rect x="0" y="172" width="575" height="22" fill="#23232f"/>
+    <text y="187" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4D5;</tspan>
+      <tspan x="36">textual-cookbook.pdf</tspan>
+      <tspan x="476" text-anchor="end">6.8 MB</tspan>
+      <tspan x="570" text-anchor="end">2026-04-19</tspan>
+    </text>
+
+    <!-- ── Row 6: notes.md ── -->
+    <rect x="0" y="194" width="575" height="22" fill="#1e1e2e"/>
+    <text y="209" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C4;</tspan>
+      <tspan x="36">notes.md</tspan>
+      <tspan x="476" text-anchor="end">12.4 KB</tspan>
+      <tspan x="570" text-anchor="end">2026-04-22</tspan>
+    </text>
+
+    <!-- ── Row 7: cover-mockup.png (zebra) ── -->
+    <rect x="0" y="216" width="575" height="22" fill="#23232f"/>
+    <text y="231" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F5BC;</tspan>
+      <tspan x="36">cover-mockup.png</tspan>
+      <tspan x="476" text-anchor="end">820 KB</tspan>
+      <tspan x="570" text-anchor="end">2026-04-10</tspan>
+    </text>
+
+    <!-- ── Row 8: reading-list.txt ── -->
+    <rect x="0" y="238" width="575" height="22" fill="#1e1e2e"/>
+    <text y="253" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C4;</tspan>
+      <tspan x="36">reading-list.txt</tspan>
+      <tspan x="476" text-anchor="end">2.1 KB</tspan>
+      <tspan x="570" text-anchor="end">2026-04-23</tspan>
+    </text>
+
+    <!-- ── Row 9: archive-2024.tar.gz (zebra) ── -->
+    <rect x="0" y="260" width="575" height="22" fill="#23232f"/>
+    <text y="275" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4E6;</tspan>
+      <tspan x="36">archive-2024.tar.gz</tspan>
+      <tspan x="476" text-anchor="end">512 MB</tspan>
+      <tspan x="570" text-anchor="end">2025-12-30</tspan>
+    </text>
+
+    <!-- ── Row 10: audiobook-sample.m4a ── -->
+    <rect x="0" y="282" width="575" height="22" fill="#1e1e2e"/>
+    <text y="297" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F3B5;</tspan>
+      <tspan x="36">audiobook-sample.m4a</tspan>
+      <tspan x="476" text-anchor="end">18 MB</tspan>
+      <tspan x="570" text-anchor="end">2025-11-04</tspan>
+    </text>
+
+    <!-- ── Row 11: conference-talk.mp4 (zebra) ── -->
+    <rect x="0" y="304" width="575" height="22" fill="#23232f"/>
+    <text y="319" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F3AC;</tspan>
+      <tspan x="36">conference-talk.mp4</tspan>
+      <tspan x="476" text-anchor="end">210 MB</tspan>
+      <tspan x="570" text-anchor="end">2026-01-15</tspan>
+    </text>
+
+    <!-- ── Row 12: .gitkeep ── -->
+    <rect x="0" y="326" width="575" height="22" fill="#1e1e2e"/>
+    <text y="341" class="mono" fill="#e8e8f0">
+      <tspan x="8">&#x1F4C4;</tspan>
+      <tspan x="36">.gitkeep</tspan>
+      <tspan x="476" text-anchor="end">0 B</tspan>
+      <tspan x="570" text-anchor="end">2024-08-01</tspan>
+    </text>
+
+    <!-- ── Rows 13–14: empty ── -->
+    <rect x="0" y="348" width="575" height="22" fill="#23232f"/>
+    <rect x="0" y="370" width="575" height="22" fill="#1e1e2e"/>
+
+    <!-- ── Pane separator ── -->
+    <rect x="575" y="62" width="2" height="330" fill="#1a1a26"/>
+
+    <!-- ── Right pane background ── -->
+    <rect x="577" y="62" width="383" height="330" fill="#1e1e2e"/>
+
+    <!-- ── Book-cover thumbnail ── -->
+    <g clip-path="url(#book)">
+      <!-- Cover bg -->
+      <rect x="689" y="89" width="160" height="190" fill="#0d1a2e"/>
+
+      <!-- Title band -->
+      <rect x="689" y="89" width="160" height="50" fill="#1a4a7a"/>
+
+      <!-- Title text simulacra -->
+      <rect x="701" y="101" width="124" height="9" rx="2" fill="#d0e8f8"/>
+      <rect x="701" y="113" width="95"  height="9" rx="2" fill="#d0e8f8"/>
+
+      <!-- Subtitle -->
+      <rect x="701" y="125" width="80" height="7" rx="1" fill="#7ab0d0"/>
+
+      <!-- Accent rule -->
+      <rect x="689" y="139" width="160" height="3" fill="#2a80c0"/>
+
+      <!-- Code-block simulacra -->
+      <rect x="701" y="150" width="55" height="5" rx="1" fill="#1e4060"/>
+      <rect x="760" y="150" width="35" height="5" rx="1" fill="#2a6090"/>
+      <rect x="709" y="160" width="80" height="5" rx="1" fill="#1e4060"/>
+      <rect x="793" y="160" width="32" height="5" rx="1" fill="#2a6090"/>
+      <rect x="701" y="170" width="45" height="5" rx="1" fill="#2a6090"/>
+      <rect x="750" y="170" width="65" height="5" rx="1" fill="#1e4060"/>
+      <rect x="709" y="180" width="70" height="5" rx="1" fill="#1e4060"/>
+      <rect x="783" y="180" width="42" height="5" rx="1" fill="#2a6090"/>
+      <rect x="701" y="190" width="95" height="5" rx="1" fill="#1e4060"/>
+      <rect x="709" y="200" width="50" height="5" rx="1" fill="#2a6090"/>
+      <rect x="763" y="200" width="60" height="5" rx="1" fill="#1e4060"/>
+      <rect x="701" y="210" width="40" height="5" rx="1" fill="#1e4060"/>
+      <rect x="745" y="210" width="80" height="5" rx="1" fill="#2a6090"/>
+      <rect x="709" y="220" width="100" height="5" rx="1" fill="#1e4060"/>
+
+      <!-- Bottom rule -->
+      <rect x="689" y="229" width="160" height="2" fill="#2a6090"/>
+
+      <!-- Author section -->
+      <rect x="689" y="231" width="160" height="48" fill="#0f3060"/>
+      <rect x="701" y="240" width="85" height="7" rx="1" fill="#80a8c0"/>
+      <rect x="701" y="252" width="60" height="6" rx="1" fill="#5080a0"/>
+      <rect x="701" y="262" width="45" height="7" rx="2" fill="#90b8d8"/>
+    </g>
+
+    <!-- Cover outline -->
+    <rect x="689" y="89" width="160" height="190" rx="4" fill="none" stroke="#2a5080" stroke-width="1"/>
+
+    <!-- ── Preview metadata ── -->
+    <!-- y = 89+190+16 = 295, baseline = 295+13 = 308 -->
+    <text x="594" y="308" class="mono" fill="#e8e8f0">&#x1F4D5;  rclone-handbook.pdf</text>
+
+    <text x="594" y="333" class="sm" fill="#9090a8">Size:      4.2 MB</text>
+    <text x="594" y="350" class="sm" fill="#9090a8">Modified:  2026-02-18</text>
+    <text x="594" y="367" class="sm" fill="#9090a8">Type:      application/pdf</text>
+
+    <text x="594" y="393" class="sm" fill="#9090a8">Page 1 of 312</text>
+
+    <!-- ── Status bar ── -->
+    <rect x="0" y="392" width="960" height="24" fill="#1a1a26"/>
+    <text x="12" y="408" class="sm" fill="#9090a8">12 items</text>
+
+    <!-- ── Footer ── -->
+    <rect x="0" y="416" width="960" height="24" fill="#262637"/>
+    <text y="432" class="sm">
+      <tspan x="16"  fill="#ffa62b">h</tspan><tspan fill="#c0c0d0"> Back</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">l</tspan><tspan fill="#c0c0d0"> Enter</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">d</tspan><tspan fill="#c0c0d0"> Download</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">/</tspan><tspan fill="#c0c0d0"> Filter</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">r</tspan><tspan fill="#c0c0d0"> Refresh</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">s</tspan><tspan fill="#c0c0d0"> Sync</tspan>
+      <tspan fill="#4a4a60">  │  </tspan>
+      <tspan fill="#ffa62b">q</tspan><tspan fill="#c0c0d0"> Quit</tspan>
+    </text>
+
+  </g>
+
+  <!-- Outer border ring -->
+  <rect width="960" height="452" rx="10" fill="none" stroke="#3a3a52" stroke-width="1.5"/>
+</svg>
