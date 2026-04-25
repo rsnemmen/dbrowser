@@ -146,8 +146,9 @@ class DownloadModal(ModalScreen[Path | None]):
         with Vertical():
             yield Label(f"Download  [bold]{self._remote_path}[/bold]")
             if self._is_root:
+                remote_name = self._remote_path.split(":")[0]
                 yield Label(
-                    "⚠  You are downloading the entire Dropbox root.",
+                    f"⚠  You are downloading the entire {remote_name} root.",
                     id="warning",
                 )
             if self._remote_size is not None:

@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Textual TUI that wraps `rclone` to give yazi-style interactive browsing of a Dropbox remote. Every cloud operation is an async subprocess — no daemon, with persistent state limited to a tracked-download ledger.
+A Textual TUI that wraps `rclone` to give yazi-style interactive browsing of cloud storage remotes. Every cloud operation is an async subprocess — no daemon, with persistent state limited to a tracked-download ledger.
+
+Supported backends: any rclone remote of type `dropbox` or `drive` (Google Drive). The backend registry lives in `config.SUPPORTED_BACKENDS`.
 
 ## Stack
 
 - Python 3.11+
 - Textual **8.x** (note the major version — APIs differ from 0.x). `pyproject.toml` pins `textual>=8.0`.
-- `rclone` on `PATH`, with a remote named exactly `dropbox`
+- `rclone` on `PATH`, with at least one remote of a supported backend type
 
 ## Dev workflow
 
@@ -21,16 +23,17 @@ python -m dbrowser         # equivalent
 python -m py_compile src/dbrowser/*.py   # quick syntax check
 ```
 
-No test suite yet. Verification is manual against a real Dropbox remote (see `## Manual smoke test` below).
+No test suite yet. Verification is manual against a real remote (see `## Manual smoke test` below).
 
 ## Startup flow
 
 `__main__.main()` runs these steps in order — useful to know when debugging first-run or auth problems:
 
 1. `rclone.check_installed()` — exits immediately if `rclone` is not on `PATH`.
-2. `config.find_remote()` — async check for a remote named `dropbox`. If absent, calls `config.run_interactive_setup()` (shells out to `rclone config`) and re-checks; exits if still absent.
-3. `DbrowserApp(remote)` — loads the tracked-download ledger during app init; if the ledger is unreadable, the app falls back to an empty one and surfaces the error as a notification after mount.
-4. `.run()` — TUI starts only after the above pass; `on_mount()` pushes `BrowserScreen` and schedules startup sync checks for any previously downloaded folders that still exist locally.
+2. `config.discover_remotes()` — finds all configured remotes whose backend type is in `config.SUPPORTED_BACKENDS`. If none are found, calls `config.prompt_backend_choice()` + `config.run_interactive_setup()` and re-checks; exits if still none found.
+3. Remote selection — if exactly one supported remote is configured, use it silently. If multiple are configured, check `--remote NAME` CLI flag; otherwise show `config.pick_remote()` picker.
+4. `DbrowserApp(remote)` — loads the tracked-download ledger during app init; if the ledger is unreadable, the app falls back to an empty one and surfaces the error as a notification after mount.
+5. `.run()` — TUI starts only after the above pass; `on_mount()` pushes `BrowserScreen` and schedules startup sync checks for any previously downloaded folders that still exist locally.
 
 ## Textual 8.x gotchas
 
@@ -48,10 +51,11 @@ All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 
 ## Design decisions (don't undo without asking)
 
-- **One remote, named `dropbox`.** Hardcoded in `config.REMOTE_NAME`. Multi-remote support is an explicit v1 non-goal.
-- **Sync is one-way, local → cloud.** Deletions on disk propagate to Dropbox. Bidirectional (`rclone bisync`) is out of scope — don't wire it in without confirming.
-- **Download ledger persists tracked folders across launches.** Startup and quit both use it to offer one-way local → cloud syncs for previously downloaded folders.
-- **First-run auth is delegated to `rclone config`.** We don't reimplement the OAuth dance. `config.run_interactive_setup()` just prints guidance and shells out.
+- **One active remote per session.** `config.discover_remotes()` finds all supported remotes; the user picks one at launch (or passes `--remote NAME`). Switching mid-session is not supported.
+- **Backend detection by type, not name.** `rclone listremotes --long` is parsed to match backend type against `config.SUPPORTED_BACKENDS`. Users can name their remotes anything.
+- **Sync is one-way, local → cloud.** Deletions on disk propagate to the remote. Bidirectional (`rclone bisync`) is out of scope — don't wire it in without confirming.
+- **Download ledger persists tracked folders across launches.** Startup and quit both use it to offer one-way local → cloud syncs for previously downloaded folders. The ledger is remote-agnostic — it keys by `remote_name:path` strings, so records from multiple remotes coexist naturally.
+- **First-run auth is delegated to `rclone config`.** We don't reimplement the OAuth dance. `config.run_interactive_setup()` just prints per-backend guidance and shells out.
 
 ## Cross-cutting state
 
@@ -66,7 +70,7 @@ All cloud I/O goes through `src/dbrowser/rclone.py`. When adding a new op:
 | `browser.py` | Main `BrowserScreen` — DataTable + preview + filter + navigation. |
 | `modals.py` | All `ModalScreen` subclasses (download path, download progress, sync diff, sync progress). |
 | `state.py` | `DownloadLedger` — persisted record of tracked downloads for startup + exit sync checks. |
-| `config.py` | Detect the `dropbox` remote; launch `rclone config` if missing. |
+| `config.py` | Discover supported remotes by backend type; launch `rclone config` if none found; multi-remote picker. |
 | `preview.py` | Render an `Entry` as a Rich renderable for the preview pane. Text → syntax, raster images/PDFs → terminal preview, unsupported binaries → metadata. |
 | `app.py` / `__main__.py` | Textual App + CLI entry point. |
 
@@ -84,4 +88,4 @@ See also `README.md` for install, first-run headless auth, keybindings, and user
 2. Navigate with `j`/`k`/`l`; preview pane should show syntax-highlighted content for a text file, a terminal-rendered preview for a supported image or PDF, and a metadata summary for an unsupported binary.
 3. Press `d` on a small folder, accept/edit the destination, and verify files land on disk after progress completes.
 4. Restart `dbrowser` after editing one downloaded file locally — the sync-diff modal should appear at startup and list exactly that changed file. Choose **Skip** or **Sync** as appropriate.
-5. Quit with `q` after editing a tracked folder during the current session — the sync-diff modal should list the changed file. Choose **Sync** and confirm the file is updated on Dropbox.
+5. Quit with `q` after editing a tracked folder during the current session — the sync-diff modal should list the changed file. Choose **Sync** and confirm the file is updated on the remote.
