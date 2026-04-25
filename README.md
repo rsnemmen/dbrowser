@@ -6,8 +6,6 @@ Browse your Dropbox files interactively, preview files without downloading them,
 
 Target audience: Those who need to browse their Dropbox files in a headless Linux server.
 
-## Screenshot
-
 ![dbrowser browsing a Dropbox folder, with a PDF preview in the right pane](docs/screenshot.svg)
 
 > **Disclaimer**
