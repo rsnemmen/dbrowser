@@ -1,15 +1,17 @@
 # dbrowser
 
-A yazi-style terminal file browser for a Dropbox remote configured in [rclone](https://rclone.org/).
+A yazi-style terminal file browser for cloud storage remotes configured in [rclone](https://rclone.org/).
 
-Browse your Dropbox files interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
+Browse your files interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
 
-Target audience: Those who need to browse their Dropbox files in a headless Linux server.
+Supported backends: **Dropbox**, **Google Drive** (any rclone remote of type `dropbox` or `drive`).
+
+Target audience: Those who need to browse cloud files in a headless Linux server.
 
 ![dbrowser browsing a Dropbox folder, with a PDF preview in the right pane](docs/screenshot.svg)
 
 > **Disclaimer**
-> This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc. References to Dropbox in this repository are purely descriptive and refer to compatibility with the Dropbox backend exposed through `rclone`.
+> This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc. or Google LLC. References to Dropbox and Google Drive are purely descriptive and refer to compatibility with their backends exposed through `rclone`.
 
 ## Requirements
 
@@ -27,24 +29,41 @@ The installer sets up [uv](https://docs.astral.sh/uv/) if needed, installs `dbro
 
 ## First run
 
-The first time you launch `dbrowser`, it will detect that no rclone remote named `dropbox` exists and drop you into `rclone config`. Follow the prompts exactly as shown:
+The first time you launch `dbrowser`, it will detect that no supported remote exists and drop you into `rclone config`. Pick the backend you want to set up, then follow the prompts shown.
+
+### Dropbox
 
 1. `n` — new remote
-2. Name: `dropbox` (must be this exact name)
+2. Name: anything (e.g. `dropbox`)
 3. Storage: pick `dropbox` from the list
 4. `client_id` / `client_secret`: leave blank (press Enter)
 5. Edit advanced config? `n`
 6. **Use auto config?** `n` — important for headless servers
-7. Follow the headless-auth instructions: on a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, then paste the token back.
+7. On a machine with a browser, run the `rclone authorize "dropbox"` command rclone prints, then paste the token back.
 8. Confirm and quit config (`q`).
+
+### Google Drive
+
+1. `n` — new remote
+2. Name: anything (e.g. `gdrive`)
+3. Storage: pick `drive` from the list
+4. `client_id` / `client_secret`: leave blank for shared quota
+5. scope: `drive.readonly` (or `drive` for full access)
+6. Edit advanced config? `n`
+7. **Use auto config?** `n` — important for headless servers
+8. Follow the headless-auth instructions shown.
+9. Confirm and quit config (`q`).
 
 `dbrowser` will then launch its TUI.
 
 ## Usage
 
 ```bash
-dbrowser
+dbrowser                  # auto-detect; show picker if multiple remotes
+dbrowser --remote gdrive  # go directly to a named remote
 ```
+
+If you have both a Dropbox and a Google Drive remote configured, `dbrowser` will show a short numbered picker at startup. Pass `--remote NAME` to skip it.
 
 ### Keybindings
 
@@ -68,7 +87,7 @@ Text files render with syntax highlighting in the right-hand pane. Supported ras
 
 ### Download
 
-Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/Dropbox-downloads/<remote-path>`, editable). Downloading the root of the configured Dropbox remote prints a size estimate and requires explicit confirmation — it won't happen by accident.
+Pressing `d` opens a confirmation modal showing the remote path and a default local destination (`~/dbrowser-downloads/<remote>/<remote-path>`, editable). Downloading the root of a remote prints a size estimate and requires explicit confirmation — it won't happen by accident.
 
 Progress is shown live; files stream to disk as they transfer. Press `Esc` in the progress modal to cancel an in-flight download.
 
@@ -78,7 +97,7 @@ Downloaded folders stay tracked across launches in a small ledger at `$XDG_STATE
 
 When `dbrowser` starts, it dry-runs `rclone sync` for each tracked folder and only prompts you for folders with local changes that have not been pushed yet. Pressing `s` runs that same tracked-folder check on demand, and quitting with `q` runs it again for any tracked folders so edits made during the current session are caught too. In all cases, you choose **Sync** or **Skip** per folder, and can press `Esc` while a sync is running to cancel it.
 
-Sync is **one-way: local → Dropbox remote**. Deletions on disk propagate to the configured Dropbox remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired into v1.
+Sync is **one-way: local → cloud remote**. Deletions on disk propagate to the configured remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired in.
 
 ## Architecture
 
@@ -96,15 +115,15 @@ src/dbrowser/
 ├── browser.py      main browser screen (list + preview)
 ├── modals.py       download/sync modals
 ├── rclone.py       async rclone wrappers
-├── config.py       first-run remote bootstrap
+├── config.py       first-run remote bootstrap and multi-remote picker
 ├── state.py        download ledger
 ├── preview.py      file preview rendering
 └── progress.py     parse rclone --use-json-log output
 ```
 
-## Limitations (v1)
+## Limitations
 
-- One remote only, hardcoded as `dropbox`.
+- One active remote per session — switching mid-session is not supported.
 - Read-only on the remote: no rename, delete, or move. Edit locally and sync back instead.
 - No on-disk cache — re-opening the tool re-fetches listings.
 - Tracked download state is persistent, but remote listings are not cached across launches.

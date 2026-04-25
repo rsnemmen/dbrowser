@@ -6,7 +6,7 @@ Grouped by theme and sized roughly. Items flagged when they bump against the exp
 
 ## Tier 1 — High user-visible value, small-to-medium effort
 
-### 0. Support for Google Drive and Box
+### ~~0. Support for Google Drive and Box~~ ✓ done — Google Drive added; Box follows trivially by adding `"box": "box"` to `config.SUPPORTED_BACKENDS`
 
 ### 1. Copy remote path to clipboard (`y`)
 **Why:** Yazi's `y` is muscle memory — users want to grab a path to paste into `rclone copy`, a shell script, or a share sheet. Low cost, high frequency.

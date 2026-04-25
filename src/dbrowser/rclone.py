@@ -86,6 +86,22 @@ async def list_remotes() -> list[str]:
     return [r.strip().rstrip(":") for r in out.decode().splitlines() if r.strip()]
 
 
+async def list_remotes_with_types() -> list[tuple[str, str]]:
+    """Return [(name, backend_type), ...] for all configured remotes."""
+    out = await _run("listremotes", "--long")
+    results = []
+    for line in out.decode().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # format: "name:                    backend_type"
+        if ":" not in line:
+            continue
+        name, _, backend = line.partition(":")
+        results.append((name.strip(), backend.strip()))
+    return results
+
+
 async def lsjson(remote_path: str) -> list[Entry]:
     """List directory contents as Entry objects, dirs first."""
     out = await _run("lsjson", remote_path)

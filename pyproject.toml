@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dbrowser"
 version = "0.1.0"
-description = "Yazi-like terminal file browser for Dropbox, backed by rclone"
+description = "Yazi-like terminal file browser for Dropbox and Google Drive, backed by rclone"
 requires-python = ">=3.11"
 dependencies = [
     "pillow>=10.0",

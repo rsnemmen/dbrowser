@@ -357,16 +357,16 @@ class BrowserScreen(Screen):
             if entry.is_dir:
                 rel = f"{self.current_path}/{entry.name}" if self.current_path else entry.name
                 remote_path = f"{self._remote}:{rel}"
-                default_local = Path.home() / "Dropbox-downloads" / Path(rel)
+                default_local = Path.home() / "dbrowser-downloads" / self._remote / Path(rel)
             else:
                 rel = f"{self.current_path}/{entry.name}" if self.current_path else entry.name
                 remote_path = f"{self._remote}:{rel}"
-                default_local = Path.home() / "Dropbox-downloads" / Path(rel).parent
+                default_local = Path.home() / "dbrowser-downloads" / self._remote / Path(rel).parent
         else:
             # Download current directory
             rel = self.current_path
             remote_path = self._remote_path()
-            default_local = Path.home() / "Dropbox-downloads" / (rel or "")
+            default_local = Path.home() / "dbrowser-downloads" / self._remote / (rel or "")
 
         is_root = remote_path == f"{self._remote}:"
 
