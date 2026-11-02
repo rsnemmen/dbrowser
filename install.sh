@@ -85,5 +85,5 @@ fi
 # ── done ──────────────────────────────────────────────────────────────────────
 say "dbrowser installed!"
 printf "\nRun ${BOLD}dbrowser${RESET} to start.\n"
-printf "On first launch it will walk you through connecting your Dropbox via rclone.\n"
+printf "On first launch it will help configure Dropbox, Google Drive, or Amazon S3 via rclone.\n"
 printf "\nTo uninstall: ${BOLD}uv tool uninstall dbrowser${RESET}\n"

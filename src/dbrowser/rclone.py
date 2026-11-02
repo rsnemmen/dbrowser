@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncGenerator, Optional
@@ -69,6 +70,11 @@ def check_installed() -> bool:
     return shutil.which(RCLONE) is not None
 
 
+def run_config() -> None:
+    """Delegate interactive configuration and credential handling to rclone."""
+    subprocess.run([RCLONE, "config"], check=False)
+
+
 async def _run(*args: str) -> bytes:
     proc = await asyncio.create_subprocess_exec(
         RCLONE, *args,
@@ -94,11 +100,13 @@ async def list_remotes_with_types() -> list[tuple[str, str]]:
         line = line.strip()
         if not line:
             continue
-        # format: "name:                    backend_type"
+        # format: "name:                    backend_type [description]"
         if ":" not in line:
             continue
         name, _, backend = line.partition(":")
-        results.append((name.strip(), backend.strip()))
+        fields = backend.split(maxsplit=1)
+        if name.strip() and fields:
+            results.append((name.strip(), fields[0]))
     return results
 
 

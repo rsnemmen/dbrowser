@@ -4,6 +4,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -97,7 +98,7 @@ class BrowserScreen(Screen):
     current_path: reactive[str] = reactive("", init=False)
     filter_text: reactive[str] = reactive("", init=False)
 
-    def __init__(self, remote: str, ledger: DownloadLedger) -> None:
+    def __init__(self, remote: str, ledger: DownloadLedger, initial_path: str = "") -> None:
         super().__init__()
         self._remote = remote
         self._ledger = ledger
@@ -106,11 +107,13 @@ class BrowserScreen(Screen):
         self._listing_cache: OrderedDict[str, list[Entry]] = OrderedDict()
         self._filter_active: bool = False
         self._preview_timer: Optional[Timer] = None
+        # Set the starting directory without running watchers before the UI mounts.
+        self.set_reactive(BrowserScreen.current_path, initial_path.strip("/"))
 
     # ── Layout ─────────────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
-        yield Label(self._breadcrumb(), id="breadcrumb")
+        yield Label(self._breadcrumb(self.current_path), id="breadcrumb")
         with Horizontal(id="content"):
             yield DataTable(id="file-list", cursor_type="row", zebra_stripes=True)
             with ScrollableContainer(id="preview-panel"):
@@ -185,7 +188,15 @@ class BrowserScreen(Screen):
             entries = await rclone.lsjson(remote_path)
         except rclone.RcloneError as exc:
             if path == self.current_path:
-                self._set_status(f"[red]Error: {exc}[/red]")
+                self._show_listing([])
+                self._set_status("Listing failed — check credentials, permissions, and rclone config.")
+                self.query_one("#preview", Static).update(Text(
+                    f"Error listing {remote_path}:\n{exc}\n\n"
+                    "Check credentials, permissions, and the configured region. "
+                    "Run 'rclone config' to repair the remote. "
+                    "For S3 access limited to a bucket, restart with '--path bucket/prefix'.",
+                    style="red",
+                ))
             return
         self._cache_listing(path, entries)
         if path != self.current_path:

@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import subprocess
-
 from . import rclone
 
 # Maps the rclone backend type to a human-friendly label used in setup guidance.
 SUPPORTED_BACKENDS: dict[str, str] = {
     "dropbox": "Dropbox",
     "drive": "Google Drive",
+    "s3": "Amazon S3 / S3-compatible",
 }
 
 
 async def discover_remotes() -> list[tuple[str, str]]:
-    """Return [(remote_name, backend_type), ...] for all remotes backed by a supported type."""
-    try:
-        all_remotes = await rclone.list_remotes_with_types()
-    except rclone.RcloneError:
-        return []
+    """Return supported remotes as (name, type) pairs; propagate config read errors."""
+    all_remotes = await rclone.list_remotes_with_types()
     return [(name, btype) for name, btype in all_remotes if btype in SUPPORTED_BACKENDS]
 
 
@@ -26,7 +22,7 @@ def run_interactive_setup(backend: str = "dropbox") -> None:
     print()
 
     if backend == "dropbox":
-        print("  No supported remote found in rclone config.")
+        print("  No matching Dropbox remote found in rclone config.")
         print(f"  Launching rclone config to set up {label}:")
         print()
         print("    1. Press n  → New remote")
@@ -38,7 +34,7 @@ def run_interactive_setup(backend: str = "dropbox") -> None:
         print("    7. Follow the token-paste instructions shown.")
         print("    8. Press q to quit rclone config.")
     elif backend == "drive":
-        print("  No supported remote found in rclone config.")
+        print("  No matching Google Drive remote found in rclone config.")
         print(f"  Launching rclone config to set up {label}:")
         print()
         print("    1. Press n  → New remote")
@@ -50,11 +46,27 @@ def run_interactive_setup(backend: str = "dropbox") -> None:
         print("    7. Use auto config? n  ← important for headless servers")
         print("    8. Follow the headless-auth instructions shown.")
         print("    9. Press q to quit rclone config.")
+    elif backend == "s3":
+        print("  No matching S3 remote found in rclone config.")
+        print(f"  Launching rclone config to set up {label}:")
+        print()
+        print("    1. Press n  → New remote")
+        print("    2. Name:      myaws  (or any name you like)")
+        print("    3. Storage:   s3")
+        print("    4. Provider:  AWS  (for Amazon S3)")
+        print("    5. Authentication:")
+        print("       env_auth = true: use AWS environment credentials, a profile, or an IAM role;")
+        print("                        leave access_key_id / secret_access_key blank.")
+        print("       env_auth = false: enter access_key_id / secret_access_key in rclone.")
+        print("    6. Region: match the bucket; leave endpoint blank for AWS.")
+        print("    7. Use advanced config if you need a named profile or session_token.")
+        print("    8. Keep the remaining defaults unless your setup requires otherwise.")
+        print("    9. Confirm the remote and press q to quit rclone config.")
     else:
         print(f"  Launching rclone config to set up {label}:")
 
     print()
-    subprocess.run(["rclone", "config"], check=False)
+    rclone.run_config()
     print()
 
 

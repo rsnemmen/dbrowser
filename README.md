@@ -4,14 +4,14 @@ A yazi-style terminal file browser for cloud storage remotes configured in [rclo
 
 Browse your files interactively, preview files without downloading them, pull any folder to disk with a keystroke, and push local edits back on exit.
 
-Supported backends: **Dropbox**, **Google Drive** (any rclone remote of type `dropbox` or `drive`).
+Supported backends: **Dropbox**, **Google Drive**, and **Amazon S3 / S3-compatible storage** (any rclone remote of type `dropbox`, `drive`, or `s3`). Remotes can have any name.
 
 Target audience: Those who need to browse cloud files in a headless Linux server.
 
 ![dbrowser browsing a Dropbox folder, with a PDF preview in the right pane](docs/screenshot.svg)
 
 > **Disclaimer**
-> This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc. or Google LLC. References to Dropbox and Google Drive are purely descriptive and refer to compatibility with their backends exposed through `rclone`.
+> This is an unofficial community project. It is not affiliated with, endorsed by, or sponsored by Dropbox, Inc., Google LLC, or Amazon Web Services. References to their services describe compatibility through `rclone`.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ The installer sets up [uv](https://docs.astral.sh/uv/) if needed, installs `dbro
 
 ## First run
 
-The first time you launch `dbrowser`, it will detect that no supported remote exists and drop you into `rclone config`. Pick the backend you want to set up, then follow the prompts shown.
+`dbrowser` reuses supported remotes already configured in rclone. If none exist, it asks which backend to set up and launches `rclone config`. To set up S3 even when another backend is already configured, run `dbrowser --backend s3`.
 
 ### Dropbox
 
@@ -56,14 +56,44 @@ The first time you launch `dbrowser`, it will detect that no supported remote ex
 
 `dbrowser` will then launch its TUI.
 
+### Amazon S3
+
+If you previously configured an S3 remote with rclone, select it with `dbrowser --remote myaws` or use `dbrowser --backend s3`. Existing credentials and remote settings are reused automatically. `dbrowser` lets rclone resolve authentication; it does not read, copy, or store your secret keys.
+
+If no S3 remote exists, run `dbrowser --backend s3` and follow the setup guidance:
+
+1. `n` — new remote; choose any name (e.g. `myaws`).
+2. Storage: `s3`; provider: `AWS` for Amazon S3.
+3. Choose authentication:
+   - Prefer `env_auth = true` with existing AWS runtime credentials, a configured AWS profile, or an IAM role. Leave `access_key_id` and `secret_access_key` blank. Temporary credentials must be valid for the session.
+   - To save keys in rclone instead, choose `env_auth = false` and enter them in rclone's prompts. Temporary keys also need a `session_token` in advanced configuration.
+4. Select the bucket's region. Leave the endpoint blank for AWS. Use advanced configuration if you need to select a named profile; alternatively set `AWS_PROFILE` before launching `dbrowser`.
+5. Keep the remaining defaults unless your environment requires otherwise. Confirm the remote and quit config (`q`).
+
+S3 authentication does not require an OAuth browser flow. For another S3-compatible service, select its provider and endpoint in rclone. See the [rclone S3 configuration and authentication documentation](https://rclone.org/s3/).
+
 ## Usage
 
 ```bash
-dbrowser                  # auto-detect; show picker if multiple remotes
-dbrowser --remote gdrive  # go directly to a named remote
+dbrowser                                      # auto-detect; pick if multiple remotes
+dbrowser --remote gdrive                       # go directly to a named remote
+dbrowser --backend s3                          # select S3, or configure it if absent
+dbrowser --backend s3 --path my-bucket/projects # start inside a bucket/prefix
+dbrowser --remote myaws --path my-bucket        # use a specific remote and bucket
+AWS_PROFILE=myprofile dbrowser --backend s3    # use a profile with runtime authentication
 ```
 
-If you have both a Dropbox and a Google Drive remote configured, `dbrowser` will show a short numbered picker at startup. Pass `--remote NAME` to skip it.
+If multiple supported remotes are configured, `dbrowser` shows a numbered picker. `--backend` limits selection to that backend, and `--remote NAME` skips the picker. When combined, the remote must match the requested backend. An unknown explicit remote name produces an error; omit `--remote` to enter first-run setup.
+
+`--path` accepts a directory relative to the selected remote, including `bucket/prefix` for S3; omit the remote name and `s3://` URL scheme. Surrounding slashes are removed. It works with all supported backends and selects the initial directory, rather than restricting navigation: `h` can still reach the remote root.
+
+### S3 permissions, troubleshooting, and costs
+
+At an S3 remote's root, the browser lists buckets; inside a bucket it lists objects and prefixes as files and folders. Root listing requires `s3:ListAllMyBuckets`. If your credentials grant access only to a known bucket or prefix, use `--path my-bucket/projects` to open it directly without first listing all buckets. Browsing needs `s3:ListBucket` for that location; previews and downloads need `s3:GetObject`. Sync also needs write/delete permissions. Keep access scoped to the intended buckets and prefixes; see [rclone's S3 permissions guidance](https://rclone.org/s3/#s3-permissions).
+
+If discovery fails, `dbrowser` reports the configuration error instead of launching setup. If an existing remote fails to list, the browser displays the error and repair guidance. Check credentials or expired sessions, bucket/prefix permissions, and the configured region; use `rclone config` to repair the remote, then restart or refresh. Access errors do not automatically reopen setup. Archived objects may require restoration before preview or download; see [rclone's archive guidance](https://rclone.org/s3/#glacier-and-glacier-deep-archive).
+
+S3 listings and metadata lookups issue requests; previews fetch object data, and downloads transfer it to your machine. Normal request, retrieval, and data-transfer charges can apply, including during sync checks. See [Amazon S3 pricing](https://aws.amazon.com/s3/pricing/). Prefer temporary credentials, HTTPS, and bucket encryption at rest; follow [AWS security best practices](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html) for bucket access and monitoring. `dbrowser` uses your rclone settings and does not change bucket policies or security settings.
 
 ### Keybindings
 
@@ -99,6 +129,8 @@ When `dbrowser` starts, it dry-runs `rclone sync` for each tracked folder and on
 
 Sync is **one-way: local → cloud remote**. Deletions on disk propagate to the configured remote. If you want bidirectional reconciliation, use `rclone bisync` manually — it's not wired in.
 
+This includes S3: confirming a sync can upload changed files and delete corresponding objects. With read-only credentials, choose **Skip** rather than syncing.
+
 ## Architecture
 
 - Single-process Python app using [Textual](https://textual.textualize.io/) for the TUI.
@@ -120,6 +152,16 @@ src/dbrowser/
 ├── preview.py      file preview rendering
 └── progress.py     parse rclone --use-json-log output
 ```
+
+## Development checks
+
+```bash
+pip install -e .
+python -m py_compile src/dbrowser/*.py
+python -m unittest discover -s tests -v
+```
+
+The automated tests use mocked rclone operations and Textual's headless browser; they require no cloud credentials. For live S3 verification, use a disposable prefix to check navigation, previews, downloads, and confirmed sync. See `CLAUDE.md` for manual smoke-test steps.
 
 ## Limitations
 

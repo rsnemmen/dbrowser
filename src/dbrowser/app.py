@@ -12,13 +12,14 @@ from .state import DownloadLedger, LedgerError
 
 
 class DbrowserApp(App):
-    """dbrowser — a yazi-style Dropbox file browser."""
+    """dbrowser — a yazi-style file browser for rclone remotes."""
 
     TITLE = "dbrowser"
 
-    def __init__(self, remote: str) -> None:
+    def __init__(self, remote: str, initial_path: str = "") -> None:
         super().__init__()
         self._remote = remote
+        self._initial_path = initial_path
         self._ledger_load_error: str | None = None
         self._startup_sync_worker: Worker[None] | None = None
         self._sync_flow_lock: asyncio.Lock | None = None
@@ -29,11 +30,13 @@ class DbrowserApp(App):
             self._ledger_load_error = str(exc)
 
     def on_mount(self) -> None:
-        self.push_screen(BrowserScreen(remote=self._remote, ledger=self.ledger))
+        self.push_screen(BrowserScreen(
+            remote=self._remote, ledger=self.ledger, initial_path=self._initial_path,
+        ))
         self._sync_flow_lock = asyncio.Lock()
         if self._ledger_load_error is not None:
             self.notify(self._ledger_load_error, title="Download ledger")
-        self.set_timer(0, self._start_startup_sync_check)
+        self.call_after_refresh(self._start_startup_sync_check)
 
     def _start_startup_sync_check(self) -> None:
         self._startup_sync_worker = self.run_worker(
